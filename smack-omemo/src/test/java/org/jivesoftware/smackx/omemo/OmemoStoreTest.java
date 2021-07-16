@@ -247,6 +247,7 @@ public abstract class OmemoStoreTest<T_IdKeyPair, T_IdKey, T_PreKey, T_SigPreKey
         assertEquals(0, store.loadOmemoSignedPreKeys(alice).size());
     }
 
+    @SuppressWarnings("UndefinedEquals")
     @Test
     public void loadStoreDateOfLastSignedPreKeyRenewal() throws IOException {
         assertNull("The date of last signed preKey renewal must be null at this stage.",
@@ -257,6 +258,7 @@ public abstract class OmemoStoreTest<T_IdKeyPair, T_IdKey, T_PreKey, T_SigPreKey
         assertEquals("Dates must equal.", after, before);
     }
 
+    @SuppressWarnings("UndefinedEquals")
     @Test
     public void loadStoreDateOfLastMessageReceived() throws IOException {
         assertNull("The date of last message received must be null at this stage.",
@@ -302,20 +304,20 @@ public abstract class OmemoStoreTest<T_IdKeyPair, T_IdKey, T_PreKey, T_SigPreKey
     }
 
     @Test
-    public void loadAllRawSessionsReturnsEmptyMapTest() {
+    public void loadAllRawSessionsReturnsEmptyMapTest() throws IOException {
         HashMap<Integer, T_Sess> sessions = store.loadAllRawSessionsOf(alice, bob.getJid());
         assertNotNull(sessions);
         assertEquals(0, sessions.size());
     }
 
     @Test
-    public void loadNonExistentRawSessionReturnsNullTest() {
+    public void loadNonExistentRawSessionReturnsNullTest() throws IOException {
         T_Sess session = store.loadRawSession(alice, bob);
         assertNull(session);
     }
 
     @Test
-    public void loadStoreMessageCounterTest() {
+    public void loadStoreMessageCounterTest() throws IOException {
         assertEquals(0, store.loadOmemoMessageCounter(alice, bob));
         store.storeOmemoMessageCounter(alice, bob, 20);
         assertEquals(20, store.loadOmemoMessageCounter(alice, bob));

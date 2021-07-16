@@ -5,11 +5,10 @@ otherwise carefully considered for deployment. The API may change even
 between patch versions."""
 
 dependencies {
-	compile project(':smack-core')
-	compile project(':smack-extensions')
-	testCompile project(path: ":smack-core", configuration: "testRuntime")
-	testCompile project(path: ":smack-core", configuration: "archives")
-	testCompile project(path: ":smack-extensions", configuration: "testRuntime")
+	api project(':smack-core')
+	api project(':smack-extensions')
 
-	compile "org.bouncycastle:bcprov-jdk15on:$bouncyCastleVersion"
+	implementation "org.hsluv:hsluv:0.2"
+
+	testFixturesApi(testFixtures(project(":smack-extensions")))
 }

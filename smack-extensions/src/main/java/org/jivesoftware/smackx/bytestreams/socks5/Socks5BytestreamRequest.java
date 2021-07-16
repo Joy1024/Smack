@@ -224,10 +224,10 @@ public class Socks5BytestreamRequest implements BytestreamRequest {
      *
      * @return the socket to send/receive data
      * @throws InterruptedException if the current thread was interrupted while waiting
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws CouldNotConnectToAnyProvidedSocks5Host
-     * @throws NoSocks5StreamHostsProvided
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws CouldNotConnectToAnyProvidedSocks5Host if no connection to any provided stream host could be established
+     * @throws NoSocks5StreamHostsProvided if no stream host was provided.
      */
     @Override
     public Socks5BytestreamSession accept() throws InterruptedException, XMPPErrorException,
@@ -299,8 +299,8 @@ public class Socks5BytestreamRequest implements BytestreamRequest {
 
     /**
      * Rejects the SOCKS5 Bytestream request by sending a reject error to the initiator.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     @Override
     public void reject() throws NotConnectedException, InterruptedException {
@@ -311,11 +311,11 @@ public class Socks5BytestreamRequest implements BytestreamRequest {
      * Cancels the SOCKS5 Bytestream request by sending an error to the initiator and building a
      * XMPP exception.
      *
-     * @param streamHosts the stream hosts.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param streamHostsExceptions the stream hosts and their exceptions.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      * @throws CouldNotConnectToAnyProvidedSocks5Host as expected result.
-     * @throws NoSocks5StreamHostsProvided
+     * @throws NoSocks5StreamHostsProvided if no stream host was provided.
      */
     private void cancelRequest(Map<StreamHost, Exception> streamHostsExceptions)
                     throws NotConnectedException, InterruptedException, CouldNotConnectToAnyProvidedSocks5Host, NoSocks5StreamHostsProvided {
@@ -333,7 +333,7 @@ public class Socks5BytestreamRequest implements BytestreamRequest {
             errorMessage = couldNotConnectException.getMessage();
         }
 
-        StanzaError.Builder error = StanzaError.from(StanzaError.Condition.item_not_found, errorMessage);
+        StanzaError error = StanzaError.from(StanzaError.Condition.item_not_found, errorMessage).build();
         IQ errorIQ = IQ.createErrorResponse(this.bytestreamRequest, error);
         this.manager.getConnection().sendStanza(errorIQ);
 

@@ -7,23 +7,18 @@ mainClassName = 'org.igniterealtime.smack.inttest.SmackIntegrationTestFramework'
 applicationDefaultJvmArgs = ["-enableassertions"]
 
 dependencies {
-	compile project(':smack-java7')
-	compile project(':smack-tcp')
-	compile project(':smack-extensions')
-	compile project(':smack-experimental')
-	compile project(':smack-omemo')
-	compile project(':smack-openpgp')
-	compile project(':smack-debug')
-	compile project(path: ":smack-omemo", configuration: "testRuntime")
-	compile 'org.reflections:reflections:0.9.11'
-	compile 'eu.geekplace.javapinning:java-pinning-java7:1.1.0-alpha1'
-	// Note that the junit-vintage-engine runtime dependency is not
-	// directly required, but it declares a dependency to
-	// junit:junit:4.12, which we currently need in sinttest, since it
-	// (ab)uses @Before from org.junit
-	compile "org.junit.vintage:junit-vintage-engine:$junitVersion"
-	compile 'junit:junit:4.12'
-	testCompile "org.jxmpp:jxmpp-jid:$jxmppVersion:tests"
+	api project(':smack-java8-full')
+	api project(':smack-resolver-dnsjava')
+	implementation project(':smack-websocket-java11')
+	implementation "com.google.guava:guava:${guavaVersion}"
+	// Do not upgrade to a higher reflections version until
+	// https://github.com/ronmamo/reflections/issues/273 is fixed.
+	implementation "org.reflections:reflections:${orgReflectionsVersion}"
+	api 'eu.geekplace.javapinning:java-pinning-java7:1.1.0-alpha1'
+	implementation group: 'commons-io', name: 'commons-io', version: "$commonsIoVersion"
+	api "org.junit.jupiter:junit-jupiter-api:$junitVersion"
+	testFixturesApi(testFixtures(project(":smack-core")))
+	testImplementation "org.jxmpp:jxmpp-jid:$jxmppVersion:tests"
 }
 
 run {

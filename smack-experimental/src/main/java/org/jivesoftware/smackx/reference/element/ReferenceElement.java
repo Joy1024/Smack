@@ -21,8 +21,11 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Stanza;
+import org.jivesoftware.smack.packet.XmlElement;
 import org.jivesoftware.smack.util.Objects;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 
@@ -33,6 +36,9 @@ import org.jxmpp.jid.BareJid;
 public class ReferenceElement implements ExtensionElement {
 
     public static final String ELEMENT = "reference";
+    public static final String NAMESPACE = ReferenceManager.NAMESPACE;
+    public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
+
     public static final String ATTR_BEGIN = "begin";
     public static final String ATTR_END = "end";
     public static final String ATTR_TYPE = "type";
@@ -51,19 +57,19 @@ public class ReferenceElement implements ExtensionElement {
     private final URI uri;
 
     // Non-XEP-compliant, but needed for SIMS
-    private final ExtensionElement child;
+    private final XmlElement child;
 
     /**
      * XEP-incompliant (v0.2) constructor. This is needed for SIMS.
      *
-     * @param begin
-     * @param end
-     * @param type
-     * @param anchor
-     * @param uri
-     * @param child
+     * @param begin TODO javadoc me please
+     * @param end TODO javadoc me please
+     * @param type TODO javadoc me please
+     * @param anchor TODO javadoc me please
+     * @param uri TODO javadoc me please
+     * @param child TODO javadoc me please
      */
-    public ReferenceElement(Integer begin, Integer end, Type type, String anchor, URI uri, ExtensionElement child) {
+    public ReferenceElement(Integer begin, Integer end, Type type, String anchor, URI uri, XmlElement child) {
         if (begin != null && begin < 0) {
             throw new IllegalArgumentException("Attribute 'begin' MUST NOT be smaller than 0.");
         }
@@ -89,11 +95,11 @@ public class ReferenceElement implements ExtensionElement {
     /**
      * XEP-Compliant constructor.
      *
-     * @param begin
-     * @param end
-     * @param type
-     * @param anchor
-     * @param uri
+     * @param begin TODO javadoc me please
+     * @param end TODO javadoc me please
+     * @param type TODO javadoc me please
+     * @param anchor TODO javadoc me please
+     * @param uri TODO javadoc me please
      */
     public ReferenceElement(Integer begin, Integer end, Type type, String anchor, URI uri) {
         this(begin, end, type, anchor, uri, null);
@@ -147,9 +153,9 @@ public class ReferenceElement implements ExtensionElement {
      */
     public static List<ReferenceElement> getReferencesFromStanza(Stanza stanza) {
         List<ReferenceElement> references = new ArrayList<>();
-        List<ExtensionElement> extensions = stanza.getExtensions(ReferenceElement.ELEMENT, ReferenceManager.NAMESPACE);
-        for (ExtensionElement e : extensions) {
-            references.add((ReferenceElement) e);
+        List<ReferenceElement> extensions = stanza.getExtensions(ReferenceElement.class);
+        for (ReferenceElement e : extensions) {
+            references.add(e);
         }
         return references;
     }
@@ -166,12 +172,12 @@ public class ReferenceElement implements ExtensionElement {
 
     @Override
     public String getNamespace() {
-        return ReferenceManager.NAMESPACE;
+        return QNAME.getNamespaceURI();
     }
 
     @Override
     public String getElementName() {
-        return ELEMENT;
+        return QNAME.getLocalPart();
     }
 
     @Override

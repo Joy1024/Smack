@@ -16,32 +16,30 @@
  */
 package org.jivesoftware.smackx.ox_im;
 
-import static junit.framework.TestCase.assertFalse;
-import static junit.framework.TestCase.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
-import java.util.logging.Level;
+import java.io.IOException;
 
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.test.util.FileTestUtil;
 import org.jivesoftware.smack.util.StringUtils;
+
 import org.jivesoftware.smackx.ox.AbstractOpenPgpIntegrationTest;
 import org.jivesoftware.smackx.ox.OpenPgpContact;
 import org.jivesoftware.smackx.ox.OpenPgpManager;
 import org.jivesoftware.smackx.ox.crypto.PainlessOpenPgpProvider;
 import org.jivesoftware.smackx.ox.element.SigncryptElement;
 import org.jivesoftware.smackx.ox.store.filebased.FileBasedOpenPgpStore;
-import org.jivesoftware.smackx.ox.util.OpenPgpPubSubUtil;
 
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
 import org.igniterealtime.smack.inttest.TestNotPossibleException;
+import org.igniterealtime.smack.inttest.annotations.AfterClass;
+import org.igniterealtime.smack.inttest.annotations.BeforeClass;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.util.SimpleResultSyncPoint;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.pgpainless.decryption_verification.OpenPgpMetadata;
 import org.pgpainless.key.OpenPgpV4Fingerprint;
 import org.pgpainless.key.protection.UnprotectedKeysProtector;
@@ -49,8 +47,9 @@ import org.pgpainless.key.protection.UnprotectedKeysProtector;
 public class OXInstantMessagingIntegrationTest extends AbstractOpenPgpIntegrationTest {
 
     private static final String sessionId = StringUtils.randomString(10);
-    private static final File aliceStorePath = FileTestUtil.getTempDir("basic_ox_messaging_test_alice_" + sessionId);
-    private static final File bobStorePath = FileTestUtil.getTempDir("basic_ox_messaging_test_bob_" + sessionId);
+    private static final File tempDir = org.apache.commons.io.FileUtils.getTempDirectory();
+    private static final File aliceStorePath = new File(tempDir, "basic_ox_messaging_test_alice_" + sessionId);
+    private static final File bobStorePath = new File(tempDir, "basic_ox_messaging_test_bob_" + sessionId);
 
     private OpenPgpV4Fingerprint aliceFingerprint = null;
     private OpenPgpV4Fingerprint bobFingerprint = null;
@@ -81,13 +80,13 @@ public class OXInstantMessagingIntegrationTest extends AbstractOpenPgpIntegratio
      *
      * @param environment test environment
      *
-     * @throws XMPPException.XMPPErrorException
-     * @throws InterruptedException
-     * @throws SmackException.NotConnectedException
+     * @throws XMPPException.XMPPErrorException if there was an XMPP error returned.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException.NotConnectedException if the XMPP connection is not connected.
      * @throws TestNotPossibleException if the test is not possible due to lacking server support for PEP.
-     * @throws SmackException.NoResponseException
+     * @throws SmackException.NoResponseException if there was no response from the remote entity.
      */
-    public OXInstantMessagingIntegrationTest(SmackIntegrationTestEnvironment<?> environment)
+    public OXInstantMessagingIntegrationTest(SmackIntegrationTestEnvironment environment)
             throws XMPPException.XMPPErrorException, InterruptedException, SmackException.NotConnectedException,
             TestNotPossibleException, SmackException.NoResponseException {
         super(environment);
@@ -95,17 +94,14 @@ public class OXInstantMessagingIntegrationTest extends AbstractOpenPgpIntegratio
 
     @BeforeClass
     @AfterClass
-    public static void deleteStore() {
-        LOGGER.log(Level.INFO, "Deleting storage directories...");
-        FileTestUtil.deleteDirectory(aliceStorePath);
-        FileTestUtil.deleteDirectory(bobStorePath);
+    public static void deleteStore() throws IOException {
+        org.apache.commons.io.FileUtils.deleteDirectory(aliceStorePath);
+        org.apache.commons.io.FileUtils.deleteDirectory(bobStorePath);
     }
 
     @SmackIntegrationTest
     public void basicInstantMessagingTest()
             throws Exception {
-
-        LOGGER.log(Level.INFO, aliceStorePath.getAbsolutePath() + " " + bobStorePath.getAbsolutePath());
 
         final SimpleResultSyncPoint bobReceivedMessage = new SimpleResultSyncPoint();
         final String body = "Writing integration tests is an annoying task, but it has to be done, so lets do it!!!";
@@ -115,8 +111,8 @@ public class OXInstantMessagingIntegrationTest extends AbstractOpenPgpIntegratio
         FileBasedOpenPgpStore bobStore = new FileBasedOpenPgpStore(bobStorePath);
         bobStore.setKeyRingProtector(new UnprotectedKeysProtector());
 
-        PainlessOpenPgpProvider aliceProvider = new PainlessOpenPgpProvider(aliceConnection, aliceStore);
-        PainlessOpenPgpProvider bobProvider = new PainlessOpenPgpProvider(bobConnection, bobStore);
+        PainlessOpenPgpProvider aliceProvider = new PainlessOpenPgpProvider(aliceStore);
+        PainlessOpenPgpProvider bobProvider = new PainlessOpenPgpProvider(bobStore);
 
         aliceOpenPgp = OpenPgpManager.getInstanceFor(aliceConnection);
         bobOpenPgp = OpenPgpManager.getInstanceFor(bobConnection);
@@ -163,26 +159,4 @@ public class OXInstantMessagingIntegrationTest extends AbstractOpenPgpIntegratio
         bobReceivedMessage.waitForResult(timeout);
     }
 
-    @After
-    public void deleteKeyMetadata()
-            throws XMPPException.XMPPErrorException, SmackException.NotConnectedException, InterruptedException,
-            SmackException.NoResponseException {
-        OpenPgpPubSubUtil.deletePubkeysListNode(alicePepManager);
-        OpenPgpPubSubUtil.deletePubkeysListNode(bobPepManager);
-
-        if (aliceFingerprint != null) {
-            OpenPgpPubSubUtil.deletePublicKeyNode(alicePepManager, aliceFingerprint);
-        }
-        if (bobFingerprint != null) {
-            OpenPgpPubSubUtil.deletePublicKeyNode(bobPepManager, bobFingerprint);
-        }
-
-        if (aliceOpenPgp != null) {
-            aliceOpenPgp.stopMetadataListener();
-        }
-
-        if (bobOpenPgp != null) {
-            bobOpenPgp.stopMetadataListener();
-        }
-    }
 }

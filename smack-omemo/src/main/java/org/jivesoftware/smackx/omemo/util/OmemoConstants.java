@@ -18,11 +18,11 @@ package org.jivesoftware.smackx.omemo.util;
 
 /**
  * Some constants related to OMEMO.
+ *
  * @author Paul Schaub
  */
 public final class OmemoConstants {
 
-    // Constants
     /**
      * Omemo related namespace.
      */
@@ -31,7 +31,6 @@ public final class OmemoConstants {
 
     // PubSub Node names
     public static final String PEP_NODE_DEVICE_LIST = OMEMO_NAMESPACE_V_AXOLOTL + ".devicelist";
-    public static final String PEP_NODE_DEVICE_LIST_NOTIFY = PEP_NODE_DEVICE_LIST + "+notify";
     public static final String PEP_NODE_BUNDLES = OMEMO_NAMESPACE_V_AXOLOTL + ".bundles";
 
     /**

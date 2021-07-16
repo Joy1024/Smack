@@ -16,7 +16,9 @@
  */
 package org.jivesoftware.smackx.pubsub;
 
-import org.jivesoftware.smack.packet.ExtensionElement;
+import org.jivesoftware.smack.packet.XmlElement;
+import org.jivesoftware.smack.packet.XmlEnvironment;
+import org.jivesoftware.smack.util.XmlStringBuilder;
 
 import org.jivesoftware.smackx.pubsub.packet.PubSubNamespace;
 
@@ -28,12 +30,12 @@ import org.jivesoftware.smackx.pubsub.packet.PubSubNamespace;
  *
  * @author Robin Collier
  */
-public class NodeExtension implements ExtensionElement {
+public class NodeExtension implements XmlElement {
     private final PubSubElementType element;
     private final String node;
 
     /**
-     * Constructs a <tt>NodeExtension</tt> with an element name specified
+     * Constructs a <code>NodeExtension</code> with an element name specified
      * by {@link PubSubElementType} and the specified node id.
      *
      * @param elem Defines the element name and namespace
@@ -45,7 +47,7 @@ public class NodeExtension implements ExtensionElement {
     }
 
     /**
-     * Constructs a <tt>NodeExtension</tt> with an element name specified
+     * Constructs a <code>NodeExtension</code> with an element name specified
      * by {@link PubSubElementType}.
      *
      * @param elem Defines the element name and namespace
@@ -78,8 +80,17 @@ public class NodeExtension implements ExtensionElement {
     }
 
     @Override
-    public CharSequence toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-        return '<' + getElementName() + (node == null ? "" : " node='" + node + '\'') + "/>";
+    public final XmlStringBuilder toXML(XmlEnvironment enclosingNamespace) {
+        XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
+        xml.optAttribute("node", node);
+
+        addXml(xml);
+
+        return xml;
+    }
+
+    protected void addXml(XmlStringBuilder xml) {
+        xml.closeEmptyElement();
     }
 
     @Override

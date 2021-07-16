@@ -26,7 +26,7 @@ import org.jivesoftware.smack.util.XmlStringBuilder;
 /**
  * Represents a stream error packet. Stream errors are unrecoverable errors where the server
  * will close the underlying TCP connection after the stream error was sent to the client.
- * These is the list of stream errors as defined in the XMPP spec:<p>
+ * These is the list of stream errors as defined in the XMPP spec:
  *
  * <table border=1>
  *      <caption>Stream Errors</caption>
@@ -105,7 +105,7 @@ public class StreamError extends AbstractError implements Nonza {
     private final Condition condition;
     private final String conditionText;
 
-    public StreamError(Condition condition, String conditionText, Map<String, String> descriptiveTexts, List<ExtensionElement> extensions) {
+    public StreamError(Condition condition, String conditionText, Map<String, String> descriptiveTexts, List<XmlElement> extensions) {
         super(descriptiveTexts, extensions);
         // Some implementations may send the condition as non-empty element containing the empty string, that is
         // <condition xmlns='foo'></condition>, in this case the parser may calls this constructor with the empty string

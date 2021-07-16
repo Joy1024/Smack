@@ -19,6 +19,7 @@ package org.jivesoftware.smackx.ox;
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
+
 import org.jivesoftware.smackx.ox.util.OpenPgpPubSubUtil;
 import org.jivesoftware.smackx.pep.PepManager;
 
@@ -41,7 +42,7 @@ public abstract class AbstractOpenPgpIntegrationTest extends AbstractSmackIntegr
     protected final PepManager bobPepManager;
     protected final PepManager chloePepManager;
 
-    protected AbstractOpenPgpIntegrationTest(SmackIntegrationTestEnvironment<?> environment)
+    protected AbstractOpenPgpIntegrationTest(SmackIntegrationTestEnvironment environment)
             throws XMPPException.XMPPErrorException, TestNotPossibleException, SmackException.NotConnectedException,
             InterruptedException, SmackException.NoResponseException {
         super(environment);

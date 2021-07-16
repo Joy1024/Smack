@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2014-2019 Florian Schmaus
+ * Copyright 2014-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.jivesoftware.smack.AbstractXMPPConnection;
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
-import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.packet.StanzaBuilder;
 import org.jivesoftware.smack.tcp.XMPPTCPConnection.PacketWriter;
 import org.jivesoftware.smack.util.ExceptionUtil;
 
@@ -51,14 +51,14 @@ public class PacketWriterTest {
      * {@link PacketWriter#sendStanza(org.jivesoftware.smack.tcp.packet.Packet)} does unblock after the
      * interrupt.
      *
-     * @throws InterruptedException
-     * @throws BrokenBarrierException
-     * @throws NotConnectedException
-     * @throws XmppStringprepException
-     * @throws SecurityException
-     * @throws NoSuchFieldException
-     * @throws IllegalAccessException
-     * @throws IllegalArgumentException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws BrokenBarrierException in case of a broken barrier.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws XmppStringprepException if the provided string is invalid.
+     * @throws SecurityException if there was a security violation.
+     * @throws NoSuchFieldException if there is no such field.
+     * @throws IllegalAccessException if there was an illegal access.
+     * @throws IllegalArgumentException if an illegal argument was given.
      */
     @Test
     public void shouldBlockAndUnblockTest() throws InterruptedException, BrokenBarrierException, NotConnectedException, XmppStringprepException, NoSuchFieldException, SecurityException, IllegalArgumentException, IllegalAccessException {
@@ -80,7 +80,7 @@ public class PacketWriterTest {
         // full capacity. The +1 is because the writer thread will dequeue one stanza and try to write it into the
         // blocking writer.
         for (int i = 0; i < XMPPTCPConnection.PacketWriter.QUEUE_SIZE + 1; i++) {
-            pw.sendStreamElement(new Message());
+            pw.sendStreamElement(StanzaBuilder.buildMessage().build());
         }
 
         final CyclicBarrier barrier = new CyclicBarrier(2);
@@ -93,7 +93,7 @@ public class PacketWriterTest {
             public void run() {
                 try {
                     barrier.await();
-                    pw.sendStreamElement(new Message());
+                    pw.sendStreamElement(StanzaBuilder.buildMessage().build());
                     // should only return after the pw was interrupted
                     if (!shutdown) {
                         prematureUnblocked = true;
@@ -124,8 +124,6 @@ public class PacketWriterTest {
         // Not really cool, but may increases the chances for 't' to block in sendStanza.
         Thread.sleep(250);
 
-        // Set to true for testing purposes, so that shutdown() won't wait packet writer
-        pw.shutdownDone.reportSuccess();
         // Shutdown the packetwriter, this will also interrupt the writer thread, which is what we hope to happen in the
         // thread created above.
         pw.shutdown(false);

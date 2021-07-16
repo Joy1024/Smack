@@ -27,8 +27,9 @@ import java.util.logging.Logger;
 
 import org.jivesoftware.smack.AbstractXMPPConnection;
 import org.jivesoftware.smack.SmackException;
-import org.jivesoftware.smack.SmackException.ConnectionException;
+import org.jivesoftware.smack.SmackException.GenericConnectionException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
+import org.jivesoftware.smack.SmackException.SmackWrappedException;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.XMPPException.StreamErrorException;
@@ -39,8 +40,6 @@ import org.jivesoftware.smack.packet.Nonza;
 import org.jivesoftware.smack.packet.Presence;
 import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.StanzaError;
-import org.jivesoftware.smack.sasl.packet.SaslStreamElements.SASLFailure;
-import org.jivesoftware.smack.sasl.packet.SaslStreamElements.Success;
 import org.jivesoftware.smack.util.CloseableUtil;
 import org.jivesoftware.smack.util.PacketParserUtils;
 import org.jivesoftware.smack.xml.XmlPullParser;
@@ -137,6 +136,7 @@ public class XMPPBOSHConnection extends AbstractXMPPConnection {
         this.config = config;
     }
 
+    @SuppressWarnings("deprecation")
     @Override
     protected void connectInternal() throws SmackException, InterruptedException {
         done = false;
@@ -178,7 +178,7 @@ public class XMPPBOSHConnection extends AbstractXMPPConnection {
                     .setAttribute(BodyQName.createWithPrefix(XMPP_BOSH_NS, "version", "xmpp"), "1.0")
                     .build());
         } catch (Exception e) {
-            throw new ConnectionException(e);
+            throw new GenericConnectionException(e);
         }
 
         // Wait for the response from the server
@@ -218,7 +218,7 @@ public class XMPPBOSHConnection extends AbstractXMPPConnection {
     protected void loginInternal(String username, String password, Resourcepart resource) throws XMPPException,
                     SmackException, IOException, InterruptedException {
         // Authenticate using SASL
-        saslAuthentication.authenticate(username, password, config.getAuthzid(), null);
+        authenticate(username, password, config.getAuthzid(), null);
 
         bindResourceAndEstablishSession(resource);
 
@@ -296,7 +296,7 @@ public class XMPPBOSHConnection extends AbstractXMPPConnection {
      * Send a HTTP request to the connection manager with the provided body element.
      *
      * @param body the body which will be sent.
-     * @throws BOSHException
+     * @throws BOSHException if an BOSH (Bidirectional-streams Over Synchronous HTTP, XEP-0124) related error occurs
      */
     protected void send(ComposableBody body) throws BOSHException {
         if (!connected) {
@@ -395,6 +395,26 @@ public class XMPPBOSHConnection extends AbstractXMPPConnection {
         readerConsumer.start();
     }
 
+    @Override
+    protected void afterSaslAuthenticationSuccess()
+                    throws NotConnectedException, InterruptedException, SmackWrappedException {
+        // XMPP over BOSH is unusual when it comes to SASL authentication: Instead of sending a new stream open, it
+        // requires a special XML element ot be send after successful SASL authentication.
+        // See XEP-0206 § 5., especially the following is example 5 of XEP-0206.
+        ComposableBody composeableBody = ComposableBody.builder().setNamespaceDefinition("xmpp",
+                        XMPPBOSHConnection.XMPP_BOSH_NS).setAttribute(
+                        BodyQName.createWithPrefix(XMPPBOSHConnection.XMPP_BOSH_NS, "restart",
+                                        "xmpp"), "true").setAttribute(
+                        BodyQName.create(XMPPBOSHConnection.BOSH_URI, "to"), getXMPPServiceDomain().toString()).build();
+
+        try {
+            send(composeableBody);
+        } catch (BOSHException e) {
+            // jbosh's exception API does not really match the one of Smack.
+            throw new SmackException.SmackWrappedException(e);
+        }
+    }
+
     /**
      * A listener class which listen for a successfully established connection
      * and connection errors and notifies the BOSHConnection.
@@ -490,38 +510,20 @@ public class XMPPBOSHConnection extends AbstractXMPPConnection {
                             case Presence.ELEMENT:
                                 parseAndProcessStanza(parser);
                                 break;
-                            case "challenge":
-                                // The server is challenging the SASL authentication
-                                // made by the client
-                                final String challengeData = parser.nextText();
-                                getSASLAuthentication().challengeReceived(challengeData);
-                                break;
-                            case "success":
-                                send(ComposableBody.builder().setNamespaceDefinition("xmpp",
-                                                XMPPBOSHConnection.XMPP_BOSH_NS).setAttribute(
-                                                BodyQName.createWithPrefix(XMPPBOSHConnection.XMPP_BOSH_NS, "restart",
-                                                                "xmpp"), "true").setAttribute(
-                                                BodyQName.create(XMPPBOSHConnection.BOSH_URI, "to"), getXMPPServiceDomain().toString()).build());
-                                Success success = new Success(parser.nextText());
-                                getSASLAuthentication().authenticated(success);
-                                break;
                             case "features":
                                 parseFeatures(parser);
-                                break;
-                            case "failure":
-                                if ("urn:ietf:params:xml:ns:xmpp-sasl".equals(parser.getNamespace(null))) {
-                                    final SASLFailure failure = PacketParserUtils.parseSASLFailure(parser);
-                                    getSASLAuthentication().authenticationFailed(failure);
-                                }
                                 break;
                             case "error":
                                 // Some BOSH error isn't stream error.
                                 if ("urn:ietf:params:xml:ns:xmpp-streams".equals(parser.getNamespace(null))) {
                                     throw new StreamErrorException(PacketParserUtils.parseStreamError(parser));
                                 } else {
-                                    StanzaError.Builder builder = PacketParserUtils.parseError(parser);
-                                    throw new XMPPException.XMPPErrorException(null, builder.build());
+                                    StanzaError stanzaError = PacketParserUtils.parseError(parser);
+                                    throw new XMPPException.XMPPErrorException(null, stanzaError);
                                 }
+                            default:
+                                parseAndProcessNonza(parser);
+                                break;
                             }
                             break;
                         default:

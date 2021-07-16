@@ -19,15 +19,16 @@ package org.jivesoftware.smackx.message_markup.element;
 import java.util.Collections;
 import java.util.List;
 
-import org.jivesoftware.smack.packet.NamedElement;
+import javax.xml.namespace.QName;
+
+import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 
-public class ListElement implements MarkupElement.MarkupChildElement {
+public class ListElement extends MarkupElement.NonEmptyChildElement {
 
     public static final String ELEMENT = "list";
-    public static final String ELEM_LI = "li";
+    public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
-    private final int start, end;
     private final List<ListEntryElement> entries;
 
     /**
@@ -38,25 +39,14 @@ public class ListElement implements MarkupElement.MarkupChildElement {
      * @param entries list entries
      */
     public ListElement(int start, int end, List<ListEntryElement> entries) {
-        this.start = start;
-        this.end = end;
+        super(start, end);
         this.entries = Collections.unmodifiableList(entries);
-    }
-
-    @Override
-    public int getStart() {
-        return start;
-    }
-
-    @Override
-    public int getEnd() {
-        return end;
     }
 
     /**
      * Return a list of all list entries.
      *
-     * @return entries
+     * @return entries TODO javadoc me please
      */
     public List<ListEntryElement> getEntries() {
         return entries;
@@ -64,26 +54,19 @@ public class ListElement implements MarkupElement.MarkupChildElement {
 
     @Override
     public String getElementName() {
-        return ELEMENT;
+        return QNAME.getLocalPart();
     }
 
     @Override
-    public CharSequence toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-        XmlStringBuilder xml = new XmlStringBuilder();
-        xml.halfOpenElement(this);
-        xml.attribute(ATTR_START, getStart());
-        xml.attribute(ATTR_END, getEnd());
-        xml.rightAngleBracket();
-
-        for (ListEntryElement li : getEntries()) {
-            xml.append(li.toXML());
-        }
-
-        xml.closeElement(this);
-        return xml;
+    public void appendInnerXml(XmlStringBuilder xml) {
+        xml.append(getEntries());
     }
 
-    public static class ListEntryElement implements NamedElement {
+    public static class ListEntryElement implements ExtensionElement {
+
+        public static final String ELEMENT = "li";
+
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final int start;
 
@@ -106,14 +89,18 @@ public class ListElement implements MarkupElement.MarkupChildElement {
 
         @Override
         public String getElementName() {
-            return ELEM_LI;
+            return QNAME.getLocalPart();
+        }
+
+        @Override
+        public String getNamespace() {
+            return QNAME.getNamespaceURI();
         }
 
         @Override
         public XmlStringBuilder toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-            XmlStringBuilder xml = new XmlStringBuilder();
-            xml.halfOpenElement(this);
-            xml.attribute(ATTR_START, getStart());
+            XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
+            xml.attribute(MarkupElement.MarkupChildElement.ATTR_START, getStart());
             xml.closeEmptyElement();
             return xml;
         }

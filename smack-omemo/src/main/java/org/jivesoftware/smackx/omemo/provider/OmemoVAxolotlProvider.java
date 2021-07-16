@@ -17,7 +17,6 @@
 package org.jivesoftware.smackx.omemo.provider;
 
 import static org.jivesoftware.smackx.omemo.element.OmemoElement.ATTR_PAYLOAD;
-import static org.jivesoftware.smackx.omemo.element.OmemoElement.NAME_ENCRYPTED;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,26 +41,25 @@ public class OmemoVAxolotlProvider extends ExtensionElementProvider<OmemoElement
 
     @Override
     public OmemoElement_VAxolotl parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment) throws XmlPullParserException, IOException {
-        boolean inEncrypted = true;
         int sid = -1;
         ArrayList<OmemoKeyElement> keys = new ArrayList<>();
         byte[] iv = null;
         byte[] payload = null;
 
-        while (inEncrypted) {
+        outerloop: while (true) {
             XmlPullParser.Event tag = parser.next();
-            String name = parser.getName();
             switch (tag) {
                 case START_ELEMENT:
+                    String name = parser.getName();
                     switch (name) {
-                        case OmemoHeaderElement.NAME_HEADER:
+                        case OmemoHeaderElement.ELEMENT:
                             for (int i = 0; i < parser.getAttributeCount(); i++) {
                                 if (parser.getAttributeName(i).equals(OmemoHeaderElement.ATTR_SID)) {
                                     sid = Integer.parseInt(parser.getAttributeValue(i));
                                 }
                             }
                             break;
-                        case OmemoKeyElement.NAME_KEY:
+                        case OmemoKeyElement.ELEMENT:
                             boolean prekey = false;
                             int rid = -1;
                             for (int i = 0; i < parser.getAttributeCount(); i++) {
@@ -82,8 +80,8 @@ public class OmemoVAxolotlProvider extends ExtensionElementProvider<OmemoElement
                     }
                     break;
                 case END_ELEMENT:
-                    if (name.equals(NAME_ENCRYPTED)) {
-                        inEncrypted = false;
+                    if (parser.getDepth() == initialDepth) {
+                        break outerloop;
                     }
                     break;
                 default:

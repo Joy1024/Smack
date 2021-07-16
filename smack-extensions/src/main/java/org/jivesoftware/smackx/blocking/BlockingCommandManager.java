@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2016-2017 Fernando Ramirez, Florian Schmaus
+ * Copyright 2016-2017 Fernando Ramirez, 2016-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import org.jivesoftware.smack.AbstractConnectionListener;
 import org.jivesoftware.smack.ConnectionCreationListener;
+import org.jivesoftware.smack.ConnectionListener;
 import org.jivesoftware.smack.Manager;
 import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
@@ -35,7 +35,6 @@ import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
 import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 
 import org.jivesoftware.smackx.blocking.element.BlockContactsIQ;
 import org.jivesoftware.smackx.blocking.element.BlockListIQ;
@@ -72,7 +71,7 @@ public final class BlockingCommandManager extends Manager {
     /**
      * Get the singleton instance of BlockingCommandManager.
      *
-     * @param connection
+     * @param connection TODO javadoc me please
      * @return the instance of BlockingCommandManager
      */
     public static synchronized BlockingCommandManager getInstanceFor(XMPPConnection connection) {
@@ -97,7 +96,7 @@ public final class BlockingCommandManager extends Manager {
 
         // block IQ handler
         connection.registerIQRequestHandler(
-                new AbstractIqRequestHandler(BlockContactsIQ.ELEMENT, BlockContactsIQ.NAMESPACE, Type.set, Mode.sync) {
+                new AbstractIqRequestHandler(BlockContactsIQ.ELEMENT, BlockContactsIQ.NAMESPACE, IQ.Type.set, Mode.sync) {
                     @Override
                     public IQ handleIQRequest(IQ iqRequest) {
                         BlockContactsIQ blockContactIQ = (BlockContactsIQ) iqRequest;
@@ -119,7 +118,7 @@ public final class BlockingCommandManager extends Manager {
 
         // unblock IQ handler
         connection.registerIQRequestHandler(new AbstractIqRequestHandler(UnblockContactsIQ.ELEMENT,
-                UnblockContactsIQ.NAMESPACE, Type.set, Mode.sync) {
+                UnblockContactsIQ.NAMESPACE, IQ.Type.set, Mode.sync) {
             @Override
             public IQ handleIQRequest(IQ iqRequest) {
                 UnblockContactsIQ unblockContactIQ = (UnblockContactsIQ) iqRequest;
@@ -145,7 +144,7 @@ public final class BlockingCommandManager extends Manager {
             }
         });
 
-        connection.addConnectionListener(new AbstractConnectionListener() {
+        connection.addConnectionListener(new ConnectionListener() {
             @Override
             public void authenticated(XMPPConnection connection, boolean resumed) {
                 // No need to reset the cache if the connection got resumed.
@@ -161,10 +160,10 @@ public final class BlockingCommandManager extends Manager {
      * Returns true if Blocking Command is supported by the server.
      *
      * @return true if Blocking Command is supported by the server.
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean isSupportedByServer()
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -175,17 +174,17 @@ public final class BlockingCommandManager extends Manager {
      * Returns the block list.
      *
      * @return the blocking list
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public List<Jid> getBlockList()
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
 
         if (blockListCached == null) {
             BlockListIQ blockListIQ = new BlockListIQ();
-            BlockListIQ blockListIQResult = connection().createStanzaCollectorAndSend(blockListIQ).nextResultOrThrow();
+            BlockListIQ blockListIQResult = connection().sendIqRequestAndWaitForResponse(blockListIQ);
             blockListCached = blockListIQResult.getBlockedJidsCopy();
         }
 
@@ -195,45 +194,45 @@ public final class BlockingCommandManager extends Manager {
     /**
      * Block contacts.
      *
-     * @param jids
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param jids TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void blockContacts(List<Jid> jids)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         BlockContactsIQ blockContactIQ = new BlockContactsIQ(jids);
-        connection().createStanzaCollectorAndSend(blockContactIQ).nextResultOrThrow();
+        connection().sendIqRequestAndWaitForResponse(blockContactIQ);
     }
 
     /**
      * Unblock contacts.
      *
-     * @param jids
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param jids TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void unblockContacts(List<Jid> jids)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         UnblockContactsIQ unblockContactIQ = new UnblockContactsIQ(jids);
-        connection().createStanzaCollectorAndSend(unblockContactIQ).nextResultOrThrow();
+        connection().sendIqRequestAndWaitForResponse(unblockContactIQ);
     }
 
     /**
      * Unblock all.
      *
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void unblockAll()
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         UnblockContactsIQ unblockContactIQ = new UnblockContactsIQ();
-        connection().createStanzaCollectorAndSend(unblockContactIQ).nextResultOrThrow();
+        connection().sendIqRequestAndWaitForResponse(unblockContactIQ);
     }
 
     public void addJidsBlockedListener(JidsBlockedListener jidsBlockedListener) {

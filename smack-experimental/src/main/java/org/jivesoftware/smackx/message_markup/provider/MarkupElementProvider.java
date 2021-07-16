@@ -32,6 +32,7 @@ import org.jivesoftware.smackx.message_markup.element.BlockQuoteElement;
 import org.jivesoftware.smackx.message_markup.element.CodeBlockElement;
 import org.jivesoftware.smackx.message_markup.element.ListElement;
 import org.jivesoftware.smackx.message_markup.element.MarkupElement;
+import org.jivesoftware.smackx.message_markup.element.MarkupElement.MarkupChildElement;
 import org.jivesoftware.smackx.message_markup.element.SpanElement;
 
 public class MarkupElementProvider extends ExtensionElementProvider<MarkupElement> {
@@ -49,32 +50,33 @@ public class MarkupElementProvider extends ExtensionElementProvider<MarkupElemen
 
         while (true) {
             XmlPullParser.Event tag = parser.next();
-            String name = parser.getName();
+            String name;
             int start, end;
             switch (tag) {
                 case START_ELEMENT:
+                    name = parser.getName();
                     switch (name) {
                         case BlockQuoteElement.ELEMENT:
-                            start = ParserUtils.getIntegerAttributeOrThrow(parser, BlockQuoteElement.ATTR_START,
+                            start = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_START,
                                     "Message Markup BlockQuoteElement MUST contain a 'start' attribute.");
-                            end = ParserUtils.getIntegerAttributeOrThrow(parser, BlockQuoteElement.ATTR_END,
+                            end = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_END,
                                     "Message Markup BlockQuoteElement MUST contain a 'end' attribute.");
                             markup.setBlockQuote(start, end);
                             break;
 
                         case CodeBlockElement.ELEMENT:
-                            start = ParserUtils.getIntegerAttributeOrThrow(parser, CodeBlockElement.ATTR_START,
+                            start = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_START,
                                     "Message Markup CodeBlockElement MUST contain a 'start' attribute.");
-                            end = ParserUtils.getIntegerAttributeOrThrow(parser, CodeBlockElement.ATTR_END,
+                            end = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_END,
                                     "Message Markup CodeBlockElement MUST contain a 'end' attribute.");
                             markup.setCodeBlock(start, end);
                             break;
 
                         case SpanElement.ELEMENT:
                             spanStyles = new HashSet<>();
-                            spanStart = ParserUtils.getIntegerAttributeOrThrow(parser, SpanElement.ATTR_START,
+                            spanStart = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_START,
                                     "Message Markup SpanElement MUST contain a 'start' attribute.");
-                            spanEnd = ParserUtils.getIntegerAttributeOrThrow(parser, SpanElement.ATTR_END,
+                            spanEnd = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_END,
                                     "Message Markup SpanElement MUST contain a 'end' attribute.");
                             break;
 
@@ -92,14 +94,14 @@ public class MarkupElementProvider extends ExtensionElementProvider<MarkupElemen
 
                         case ListElement.ELEMENT:
                             lis = new ArrayList<>();
-                            listStart = ParserUtils.getIntegerAttributeOrThrow(parser, ListElement.ATTR_START,
+                            listStart = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_START,
                                     "Message Markup ListElement MUST contain a 'start' attribute.");
-                            listEnd = ParserUtils.getIntegerAttributeOrThrow(parser, ListElement.ATTR_END,
+                            listEnd = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_END,
                                     "Message Markup ListElement MUST contain a 'end' attribute.");
                             break;
 
-                        case ListElement.ELEM_LI:
-                            start = ParserUtils.getIntegerAttributeOrThrow(parser, ListElement.ATTR_START,
+                        case ListElement.ListEntryElement.ELEMENT:
+                            start = ParserUtils.getIntegerAttributeOrThrow(parser, MarkupChildElement.ATTR_START,
                                     "Message Markup ListElement 'li' MUST contain a 'start' attribute.");
                             lis.add(new ListElement.ListEntryElement(start));
                             break;
@@ -107,6 +109,11 @@ public class MarkupElementProvider extends ExtensionElementProvider<MarkupElemen
                     break;
 
                 case END_ELEMENT:
+                    if (parser.getDepth() == initialDepth) {
+                        return markup.build();
+                    }
+
+                    name = parser.getName();
                     switch (name) {
                         case SpanElement.ELEMENT:
                             markup.addSpan(spanStart, spanEnd, spanStyles);
@@ -127,9 +134,6 @@ public class MarkupElementProvider extends ExtensionElementProvider<MarkupElemen
                             }
                             listBuilder.endList();
                             break;
-
-                        case MarkupElement.ELEMENT:
-                            return markup.build();
                     }
                     break;
 

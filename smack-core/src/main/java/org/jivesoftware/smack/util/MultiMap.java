@@ -1,6 +1,6 @@
 /**
  *
- * Copyright © 2015-2019 Florian Schmaus
+ * Copyright © 2015-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,11 @@ public class MultiMap<K, V> {
      * @param size the initial capacity.
      */
     public MultiMap(int size) {
-        map = new LinkedHashMap<>(size);
+        this(new LinkedHashMap<>(size));
+    }
+
+    private MultiMap(Map<K, List<V>> map) {
+        this.map = map;
     }
 
     public int size() {
@@ -72,11 +76,11 @@ public class MultiMap<K, V> {
         return map.isEmpty();
     }
 
-    public boolean containsKey(Object key) {
+    public boolean containsKey(K key) {
         return map.containsKey(key);
     }
 
-    public boolean containsValue(Object value) {
+    public boolean containsValue(V value) {
         for (List<V> list : map.values()) {
             if (list.contains(value)) {
                 return true;
@@ -88,10 +92,10 @@ public class MultiMap<K, V> {
     /**
      * Get the first value for the given key, or <code>null</code> if there are no entries.
      *
-     * @param key
+     * @param key TODO javadoc me please
      * @return the first value or null.
      */
-    public V getFirst(Object key) {
+    public V getFirst(K key) {
         List<V> res = getAll(key);
         if (res.isEmpty()) {
             return null;
@@ -106,10 +110,10 @@ public class MultiMap<K, V> {
      * Changes to the returned set will update the underlying MultiMap if the return set is not empty.
      * </p>
      *
-     * @param key
+     * @param key TODO javadoc me please
      * @return all values for the given key.
      */
-    public List<V> getAll(Object key) {
+    public List<V> getAll(K key) {
         List<V> res = map.get(key);
         if (res == null) {
             res = Collections.emptyList();
@@ -118,32 +122,41 @@ public class MultiMap<K, V> {
     }
 
     public boolean put(K key, V value) {
+        return putInternal(key, list -> list.add(value));
+    }
+
+    public boolean putFirst(K key, V value) {
+        return putInternal(key, list -> list.add(0, value));
+    }
+
+    private boolean putInternal(K key, Consumer<List<V>> valueListConsumer) {
         boolean keyExisted;
         List<V> list = map.get(key);
         if (list == null) {
             list = new ArrayList<>(ENTRY_LIST_SIZE);
-            list.add(value);
             map.put(key, list);
             keyExisted = false;
         } else {
-            list.add(value);
             keyExisted = true;
         }
+
+        valueListConsumer.accept(list);
+
         return keyExisted;
     }
 
     /**
      * Removes all mappings for the given key and returns the first value if there where mappings or <code>null</code> if not.
      *
-     * @param key
+     * @param key TODO javadoc me please
      * @return the first value of the given key or null.
      */
-    public V remove(Object key) {
+    public V remove(K key) {
         List<V> res = map.remove(key);
         if (res == null) {
             return null;
         }
-        assert (!res.isEmpty());
+        assert !res.isEmpty();
         return res.iterator().next();
     }
 
@@ -153,11 +166,11 @@ public class MultiMap<K, V> {
      * Returns <code>true</code> if the mapping was removed and <code>false</code> if the mapping did not exist.
      * </p>
      *
-     * @param key
-     * @param value
+     * @param key TODO javadoc me please
+     * @param value TODO javadoc me please
      * @return true if the mapping was removed, false otherwise.
      */
-    public boolean removeOne(Object key, V value) {
+    public boolean removeOne(K key, V value) {
         List<V> list = map.get(key);
         if (list == null) {
             return false;
@@ -233,6 +246,31 @@ public class MultiMap<K, V> {
             }
         }
         return entrySet;
+    }
+
+    public MultiMap<K, V> asUnmodifiableMultiMap() {
+        LinkedHashMap<K, List<V>> mapCopy = new LinkedHashMap<>(map.size());
+        for (Map.Entry<K, List<V>> entry : map.entrySet()) {
+            K key = entry.getKey();
+            List<V> values = entry.getValue();
+
+            mapCopy.put(key, Collections.unmodifiableList(values));
+        }
+
+        return new MultiMap<K, V>(Collections.unmodifiableMap(mapCopy));
+    }
+
+    @Override
+    public MultiMap<K, V> clone() {
+        Map<K, List<V>> clonedMap = new LinkedHashMap<>(map.size());
+
+        // TODO: Use Map.forEach() once Smack's minimum Android API is 24 or higher.
+        for (Map.Entry<K, List<V>> entry : map.entrySet()) {
+            List<V> clonedList = CollectionUtil.newListWith(entry.getValue());
+            clonedMap.put(entry.getKey(), clonedList);
+        }
+
+        return new MultiMap<>(clonedMap);
     }
 
     private static final class SimpleMapEntry<K, V> implements Map.Entry<K, V> {

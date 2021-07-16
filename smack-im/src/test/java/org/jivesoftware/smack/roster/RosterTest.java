@@ -35,7 +35,6 @@ import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.im.InitSmackIm;
 import org.jivesoftware.smack.packet.ErrorIQ;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.packet.Presence;
 import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.StanzaError.Condition;
@@ -95,6 +94,8 @@ public class RosterTest extends InitSmackIm {
      * Test a simple roster initialization according to the example in
      * <a href="http://xmpp.org/rfcs/rfc3921.html#roster-login"
      *     >RFC3921: Retrieving One's Roster on Login</a>.
+     *
+     * @throws Exception in case of an exception.
      */
     @Test
     public void testSimpleRosterInitialization() throws Exception {
@@ -131,6 +132,8 @@ public class RosterTest extends InitSmackIm {
      * Test adding a roster item according to the example in
      * <a href="http://xmpp.org/rfcs/rfc3921.html#roster-add"
      *     >RFC3921: Adding a Roster Item</a>.
+     *
+     * @throws Throwable in case a throwable is thrown.
      */
     @Test
     public void testAddRosterItem() throws Throwable {
@@ -203,6 +206,8 @@ public class RosterTest extends InitSmackIm {
      * Test updating a roster item according to the example in
      * <a href="http://xmpp.org/rfcs/rfc3921.html#roster-update"
      *     >RFC3921: Updating a Roster Item</a>.
+     *
+     * @throws Throwable in case a throwable is thrown.
      */
     @Test
     public void testUpdateRosterItem() throws Throwable {
@@ -279,6 +284,7 @@ public class RosterTest extends InitSmackIm {
      * Test deleting a roster item according to the example in
      * <a href="http://xmpp.org/rfcs/rfc3921.html#roster-delete"
      *     >RFC3921: Deleting a Roster Item</a>.
+     * @throws Throwable if throwable is thrown.
      */
     @Test
     public void testDeleteRosterItem() throws Throwable {
@@ -327,6 +333,7 @@ public class RosterTest extends InitSmackIm {
      * Test a simple roster push according to the example in
      * <a href="http://xmpp.org/internet-drafts/draft-ietf-xmpp-3921bis-03.html#roster-syntax-actions-push"
      *     >RFC3921bis-03: Roster Push</a>.
+     * @throws Throwable in case a throwable is thrown.
      */
     @Test
     public void testSimpleRosterPush() throws Throwable {
@@ -369,7 +376,7 @@ public class RosterTest extends InitSmackIm {
 
     /**
      * Tests that roster pushes with invalid from are ignored.
-     * @throws XmppStringprepException
+     * @throws XmppStringprepException if the provided string is invalid.
      *
      * @see <a href="http://xmpp.org/rfcs/rfc6121.html#roster-syntax-actions-push">RFC 6121, Section 2.1.6</a>
      */
@@ -377,7 +384,7 @@ public class RosterTest extends InitSmackIm {
     public void testIgnoreInvalidFrom() throws XmppStringprepException {
         final BareJid spammerJid = JidCreate.entityBareFrom("spam@example.com");
         RosterPacket packet = new RosterPacket();
-        packet.setType(Type.set);
+        packet.setType(IQ.Type.set);
         packet.setTo(connection.getUser());
         packet.setFrom(JidCreate.entityBareFrom("mallory@example.com"));
         packet.addRosterItem(new Item(spammerJid, "Cool products!"));
@@ -398,6 +405,7 @@ public class RosterTest extends InitSmackIm {
      * Test if adding an user with an empty group is equivalent with providing
      * no group.
      *
+     * @throws Throwable in case a throwable is thrown.
      * @see <a href="http://www.igniterealtime.org/issues/browse/SMACK-294">SMACK-294</a>
      */
     @Test(timeout = 5000)
@@ -466,6 +474,7 @@ public class RosterTest extends InitSmackIm {
      * Test processing a roster push with an empty group is equivalent with providing
      * no group.
      *
+     * @throws Throwable in case a throwable is thrown.
      * @see <a href="http://www.igniterealtime.org/issues/browse/SMACK-294">SMACK-294</a>
      */
     @Test
@@ -520,7 +529,7 @@ public class RosterTest extends InitSmackIm {
         for (RosterEntry entry : roster.getEntries()) {
             // prepare the roster push packet
             final RosterPacket rosterPush = new RosterPacket();
-            rosterPush.setType(Type.set);
+            rosterPush.setType(IQ.Type.set);
             rosterPush.setTo(connection.getUser());
 
             // prepare the buddy's item entry which should be removed
@@ -538,14 +547,14 @@ public class RosterTest extends InitSmackIm {
      * <a href="http://xmpp.org/rfcs/rfc3921.html#roster-login"
      *     >RFC3921: Retrieving One's Roster on Login</a>.
      *
-     * @throws SmackException
-     * @throws XmppStringprepException
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XmppStringprepException if the provided string is invalid.
      */
     private void initRoster() throws InterruptedException, SmackException, XmppStringprepException {
         roster.reload();
         while (true) {
             final Stanza sentPacket = connection.getSentPacket();
-            if (sentPacket instanceof RosterPacket && ((IQ) sentPacket).getType() == Type.get) {
+            if (sentPacket instanceof RosterPacket && ((IQ) sentPacket).getType() == IQ.Type.get) {
                 // setup the roster get request
                 final RosterPacket rosterRequest = (RosterPacket) sentPacket;
                 assertSame("The <query/> element MUST NOT contain any <item/> child elements!",
@@ -555,7 +564,7 @@ public class RosterTest extends InitSmackIm {
                 // prepare the roster result
                 final RosterPacket rosterResult = new RosterPacket();
                 rosterResult.setTo(connection.getUser());
-                rosterResult.setType(Type.result);
+                rosterResult.setType(IQ.Type.result);
                 rosterResult.setStanzaId(rosterRequest.getStanzaId());
 
                 // prepare romeo's roster entry
@@ -664,7 +673,7 @@ public class RosterTest extends InitSmackIm {
             try {
                 while (true) {
                     final Stanza packet = connection.getSentPacket();
-                    if (packet instanceof RosterPacket && ((IQ) packet).getType() == Type.set) {
+                    if (packet instanceof RosterPacket && ((IQ) packet).getType() == IQ.Type.set) {
                         final RosterPacket rosterRequest = (RosterPacket) packet;
 
                         // Prepare and process the roster push
@@ -673,7 +682,7 @@ public class RosterTest extends InitSmackIm {
                         if (item.getItemType() != ItemType.remove) {
                             item.setItemType(ItemType.none);
                         }
-                        rosterPush.setType(Type.set);
+                        rosterPush.setType(IQ.Type.set);
                         rosterPush.setTo(connection.getUser());
                         rosterPush.addRosterItem(item);
                         connection.processStanza(rosterPush);

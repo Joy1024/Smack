@@ -16,9 +16,10 @@
  */
 package org.jivesoftware.smackx.jingleold.listeners;
 
+import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPException;
-
+import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smackx.jingleold.JingleSession;
 import org.jivesoftware.smackx.jingleold.media.PayloadType;
 import org.jivesoftware.smackx.jingleold.nat.TransportCandidate;
@@ -37,11 +38,13 @@ public interface JingleSessionListener extends JingleListener {
      *                      service.
      * @param localCandidate            the local candidate where we must listen for connections
      * @param jingleSession Session that called the method
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
      */
     void sessionEstablished(PayloadType pt, TransportCandidate remoteCandidate,
-                                   TransportCandidate localCandidate, JingleSession jingleSession) throws NotConnectedException, InterruptedException;
+                                   TransportCandidate localCandidate, JingleSession jingleSession) throws NotConnectedException, InterruptedException, NoResponseException, XMPPErrorException;
 
     /**
      * Notification that the session was declined.
@@ -54,7 +57,7 @@ public interface JingleSessionListener extends JingleListener {
     /**
      * Notification that the session was redirected.
      *
-     * @param redirection
+     * @param redirection TODO javadoc me please
      * @param jingleSession session that called the method
      */
     void sessionRedirected(String redirection, JingleSession jingleSession);

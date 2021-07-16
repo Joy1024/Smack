@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2016-2019 Florian Schmaus
+ * Copyright 2016-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
  */
 package org.jivesoftware.smackx.iot;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.SmackException.NoResponseException;
@@ -31,9 +31,9 @@ import org.jivesoftware.smackx.iot.discovery.ThingState;
 import org.jivesoftware.smackx.iot.discovery.element.IoTClaimed;
 
 import org.igniterealtime.smack.inttest.AbstractSmackIntegrationTest;
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
 import org.igniterealtime.smack.inttest.TestNotPossibleException;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 import org.jxmpp.jid.Jid;
 
 public class IoTDiscoveryIntegrationTest extends AbstractSmackIntegrationTest {
@@ -41,7 +41,7 @@ public class IoTDiscoveryIntegrationTest extends AbstractSmackIntegrationTest {
     private final IoTDiscoveryManager discoveryManagerOne;
     private final IoTDiscoveryManager discoveryManagerTwo;
 
-    public IoTDiscoveryIntegrationTest(SmackIntegrationTestEnvironment<?> environment) throws NoResponseException,
+    public IoTDiscoveryIntegrationTest(SmackIntegrationTestEnvironment environment) throws NoResponseException,
                     XMPPErrorException, NotConnectedException, InterruptedException, TestNotPossibleException {
         super(environment);
         discoveryManagerOne = IoTDiscoveryManager.getInstanceFor(conOne);

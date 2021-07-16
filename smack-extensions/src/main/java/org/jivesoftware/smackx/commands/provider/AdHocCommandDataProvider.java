@@ -78,9 +78,9 @@ public class AdHocCommandDataProvider extends IQProvider<AdHocCommandData> {
         }
         while (!done) {
             eventType = parser.next();
-            elementName = parser.getName();
             namespace = parser.getNamespace();
             if (eventType == XmlPullParser.Event.START_ELEMENT) {
+                elementName = parser.getName();
                 if (parser.getName().equals("actions")) {
                     String execute = parser.getAttributeValue("", "execute");
                     if (execute != null) {
@@ -112,7 +112,7 @@ public class AdHocCommandDataProvider extends IQProvider<AdHocCommandData> {
                     adHocCommandData.addNote(new AdHocCommandNote(type, value));
                 }
                 else if (parser.getName().equals("error")) {
-                    StanzaError.Builder error = PacketParserUtils.parseError(parser);
+                    StanzaError error = PacketParserUtils.parseError(parser);
                     adHocCommandData.setError(error);
                 }
             }

@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2015-2019 Florian Schmaus
+ * Copyright 2015-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ public abstract class AbstractSmackIntTest {
 
     protected final Configuration sinttestConfiguration;
 
-    protected AbstractSmackIntTest(SmackIntegrationTestEnvironment<?> environment) {
+    protected AbstractSmackIntTest(SmackIntegrationTestEnvironment environment) {
         this.testRunId = environment.testRunId;
         this.sinttestConfiguration = environment.configuration;
         this.timeout = environment.configuration.replyTimeout;
@@ -61,14 +61,13 @@ public abstract class AbstractSmackIntTest {
         }
     }
 
-    @SuppressWarnings("ThreadPriorityCheck")
     protected void waitUntilTrue(Condition condition) throws TimeoutException, NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         final long deadline = System.currentTimeMillis() + timeout;
         do {
             if (condition.evaluate()) {
                 return;
             }
-            Thread.yield();
+            Thread.sleep(15);
         } while (System.currentTimeMillis() <= deadline);
         throw new TimeoutException("Timeout waiting for condition to become true. Timeout was " + timeout + " ms.");
     }
@@ -85,9 +84,9 @@ public abstract class AbstractSmackIntTest {
 
     protected HttpURLConnection getHttpUrlConnectionFor(URL url) throws IOException {
         HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
-        if (sinttestConfiguration.tlsContext != null && urlConnection instanceof HttpsURLConnection) {
+        if (sinttestConfiguration.sslContextFactory != null && urlConnection instanceof HttpsURLConnection) {
             HttpsURLConnection httpsUrlConnection = (HttpsURLConnection) urlConnection;
-            httpsUrlConnection.setSSLSocketFactory(sinttestConfiguration.tlsContext.getSocketFactory());
+            httpsUrlConnection.setSSLSocketFactory(sinttestConfiguration.sslContextFactory.createSslContext().getSocketFactory());
         }
         return urlConnection;
     }

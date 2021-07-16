@@ -20,6 +20,7 @@
  */
 package org.jivesoftware.smackx.omemo.signal;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
@@ -79,15 +80,16 @@ public class SignalOmemoStoreConnector
     public IdentityKeyPair getIdentityKeyPair() {
         try {
             return omemoStore.loadOmemoIdentityKeyPair(getOurDevice());
-        } catch (CorruptedOmemoKeyException e) {
+        } catch (CorruptedOmemoKeyException | IOException e) {
             LOGGER.log(Level.SEVERE, "IdentityKeyPair seems to be invalid.", e);
             return null;
         }
     }
 
     /**
-     * We don't use this.
-     * @return dummy
+     * The OMEMO protocol does not make use of a local registration ID, so we can simply return 0 here.
+     *
+     * @return local registration id.
      */
     @Override
     public int getLocalRegistrationId() {
@@ -103,7 +105,11 @@ public class SignalOmemoStoreConnector
             throw new AssertionError(e);
         }
 
-        omemoStore.storeOmemoIdentityKey(getOurDevice(), device, identityKey);
+        try {
+            omemoStore.storeOmemoIdentityKey(getOurDevice(), device, identityKey);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
         return true;
     }
 
@@ -118,7 +124,12 @@ public class SignalOmemoStoreConnector
 
     @Override
     public PreKeyRecord loadPreKey(int i) throws InvalidKeyIdException {
-        PreKeyRecord preKey = omemoStore.loadOmemoPreKey(getOurDevice(), i);
+        PreKeyRecord preKey;
+        try {
+            preKey = omemoStore.loadOmemoPreKey(getOurDevice(), i);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
 
         if (preKey == null) {
             throw new InvalidKeyIdException("No PreKey with Id " + i + " found.");
@@ -129,13 +140,17 @@ public class SignalOmemoStoreConnector
 
     @Override
     public void storePreKey(int i, PreKeyRecord preKeyRecord) {
-        omemoStore.storeOmemoPreKey(getOurDevice(), i, preKeyRecord);
+        try {
+            omemoStore.storeOmemoPreKey(getOurDevice(), i, preKeyRecord);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
     public boolean containsPreKey(int i) {
         try {
-            return (loadPreKey(i) != null);
+            return loadPreKey(i) != null;
         } catch (InvalidKeyIdException e) {
             return false;
         }
@@ -155,7 +170,12 @@ public class SignalOmemoStoreConnector
             throw new AssertionError(e);
         }
 
-        SessionRecord record = omemoStore.loadRawSession(getOurDevice(), device);
+        SessionRecord record;
+        try {
+            record = omemoStore.loadRawSession(getOurDevice(), device);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
 
         if (record != null) {
             return record;
@@ -173,7 +193,11 @@ public class SignalOmemoStoreConnector
             throw new AssertionError(e);
         }
 
-        return new ArrayList<>(omemoStore.loadAllRawSessionsOf(getOurDevice(), jid).keySet());
+        try {
+            return new ArrayList<>(omemoStore.loadAllRawSessionsOf(getOurDevice(), jid).keySet());
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
@@ -185,7 +209,11 @@ public class SignalOmemoStoreConnector
             throw new AssertionError(e);
         }
 
-        omemoStore.storeRawSession(getOurDevice(), device, sessionRecord);
+        try {
+            omemoStore.storeRawSession(getOurDevice(), device, sessionRecord);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override
@@ -226,7 +254,12 @@ public class SignalOmemoStoreConnector
 
     @Override
     public SignedPreKeyRecord loadSignedPreKey(int i) throws InvalidKeyIdException {
-        SignedPreKeyRecord signedPreKeyRecord = omemoStore.loadOmemoSignedPreKey(getOurDevice(), i);
+        SignedPreKeyRecord signedPreKeyRecord;
+        try {
+            signedPreKeyRecord = omemoStore.loadOmemoSignedPreKey(getOurDevice(), i);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
         if (signedPreKeyRecord == null) {
             throw new InvalidKeyIdException("No signed preKey with id " + i + " found.");
         }
@@ -236,14 +269,22 @@ public class SignalOmemoStoreConnector
     @Override
     public List<SignedPreKeyRecord> loadSignedPreKeys() {
 
-        TreeMap<Integer, SignedPreKeyRecord> signedPreKeyRecordHashMap =
-                omemoStore.loadOmemoSignedPreKeys(getOurDevice());
+        TreeMap<Integer, SignedPreKeyRecord> signedPreKeyRecordHashMap;
+        try {
+            signedPreKeyRecordHashMap = omemoStore.loadOmemoSignedPreKeys(getOurDevice());
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
         return new ArrayList<>(signedPreKeyRecordHashMap.values());
     }
 
     @Override
     public void storeSignedPreKey(int i, SignedPreKeyRecord signedPreKeyRecord) {
-        omemoStore.storeOmemoSignedPreKey(getOurDevice(), i, signedPreKeyRecord);
+        try {
+            omemoStore.storeOmemoSignedPreKey(getOurDevice(), i, signedPreKeyRecord);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override

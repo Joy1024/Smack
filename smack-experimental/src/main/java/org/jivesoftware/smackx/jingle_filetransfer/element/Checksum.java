@@ -16,6 +16,8 @@
  */
 package org.jivesoftware.smackx.jingle_filetransfer.element;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.util.Objects;
 import org.jivesoftware.smack.util.XmlStringBuilder;
@@ -27,6 +29,8 @@ import org.jivesoftware.smackx.jingle.element.JingleContent;
  */
 public class Checksum implements ExtensionElement {
     public static final String ELEMENT = "checksum";
+    public static final QName QNAME = new QName(JingleFileTransfer.NAMESPACE_V5, ELEMENT);
+
     public static final String ATTR_CREATOR = "creator";
     public static final String ATTR_NAME = "name";
 
@@ -43,7 +47,7 @@ public class Checksum implements ExtensionElement {
 
     @Override
     public String getElementName() {
-        return ELEMENT;
+        return QNAME.getLocalPart();
     }
 
     @Override
@@ -52,13 +56,13 @@ public class Checksum implements ExtensionElement {
         sb.optAttribute(ATTR_CREATOR, creator);
         sb.optAttribute(ATTR_NAME, name);
         sb.rightAngleBracket();
-        sb.element(file);
+        sb.append(file);
         sb.closeElement(this);
         return sb;
     }
 
     @Override
     public String getNamespace() {
-        return JingleFileTransfer.NAMESPACE_V5;
+        return QNAME.getNamespaceURI();
     }
 }

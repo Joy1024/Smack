@@ -20,8 +20,8 @@ package org.jivesoftware.smackx.commands.packet;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.IQ;
+import org.jivesoftware.smack.packet.XmlElement;
 
 import org.jivesoftware.smackx.commands.AdHocCommand;
 import org.jivesoftware.smackx.commands.AdHocCommand.Action;
@@ -230,7 +230,7 @@ public class AdHocCommandData extends IQ {
      * href="http://xmpp.org/extensions/xep-0050.html#impl-session">XEP-0050 § 3.3 Session Lifetime</a>.
      * </p>
      *
-     * @param sessionID
+     * @param sessionID TODO javadoc me please
      */
     public void setSessionID(String sessionID) {
         this.sessionID = sessionID;
@@ -240,7 +240,7 @@ public class AdHocCommandData extends IQ {
         return sessionID;
     }
 
-    public static class SpecificError implements ExtensionElement {
+    public static class SpecificError implements XmlElement {
 
         public static final String namespace = "http://jabber.org/protocol/commands";
 

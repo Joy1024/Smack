@@ -27,4 +27,5 @@ public class OpenPgpInitializer extends UrlInitializer {
     protected String getProvidersUri() {
         return "classpath:org.jivesoftware.smackx.ox/openpgp.providers";
     }
+
 }

@@ -1,19 +1,17 @@
 description = """\
 Smack API for XEP-0373: OpenPGP for XMPP."""
 
-repositories {
-	mavenCentral()
-}
-
 // Note that the test dependencies (junit, …) are inferred from the
 // sourceSet.test of the core subproject
 dependencies {
-	compile project(':smack-core')
-	compile project(':smack-extensions')
-	compile project(':smack-experimental')
+	api project(':smack-core')
+	api project(':smack-extensions')
+	api project(':smack-experimental')
 
-	compile 'org.pgpainless:pgpainless-core:0.0.1-alpha4'
+	api 'org.pgpainless:pgpainless-core:0.2.0'
 
-	testCompile project(path: ":smack-core", configuration: "testRuntime")
-	testCompile project(path: ":smack-core", configuration: "archives")
+	testImplementation "org.bouncycastle:bcprov-jdk15on:${bouncyCastleVersion}"
+
+	testFixturesApi(testFixtures(project(":smack-core")))
+	testImplementation group: 'commons-io', name: 'commons-io', version: "$commonsIoVersion"
 }

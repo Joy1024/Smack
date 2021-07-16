@@ -16,7 +16,7 @@
  */
 package org.jivesoftware.smackx.reference;
 
-import static org.jivesoftware.smack.test.util.XmlUnitUtils.assertXmlSimilar;
+import static org.jivesoftware.smack.test.util.XmlAssertUtil.assertXmlSimilar;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -57,7 +57,7 @@ public class ReferenceTest extends SmackTestSuite {
     /**
      * TODO: The uri might not be following the XMPP schema.
      * That shouldn't matter though.
-     * @throws Exception
+     * @throws Exception if an exception occurs.
      */
     @Test
     public void providerDataTest() throws Exception {
@@ -98,7 +98,7 @@ public class ReferenceTest extends SmackTestSuite {
 
     @Test
     public void typeArgumentNullTest() throws URISyntaxException {
-        assertThrows(NullPointerException.class, () ->
+        assertThrows(IllegalArgumentException.class, () ->
         new ReferenceElement(1, 2, null, null, new URI("xmpp:test@test.test")));
     }
 

@@ -150,6 +150,7 @@ public class ImageTransmitter implements Runnable {
 
                                         }
                                         catch (Exception e) {
+                                            LOGGER.log(Level.WARNING, "exception", e);
                                         }
 
                                     }
@@ -164,7 +165,7 @@ public class ImageTransmitter implements Runnable {
                     }
                 }
 
-                trace = (System.currentTimeMillis() - trace);
+                trace = System.currentTimeMillis() - trace;
                 LOGGER.fine("Loop Time:" + trace);
 
                 if (trace < 500) {
@@ -196,7 +197,7 @@ public class ImageTransmitter implements Runnable {
     /**
      * Get the encoder used to encode Images Tiles.
      *
-     * @return encoder
+     * @return encoder TODO javadoc me please
      */
     public ImageEncoder getEncoder() {
         return encoder;

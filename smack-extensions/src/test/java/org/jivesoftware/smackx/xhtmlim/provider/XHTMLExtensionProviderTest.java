@@ -17,8 +17,8 @@
 package org.jivesoftware.smackx.xhtmlim.provider;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.jivesoftware.smack.test.util.CharSequenceEquals.equalsCharSequence;
-import static org.junit.Assert.assertThat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,7 +30,7 @@ import org.jivesoftware.smack.xml.XmlPullParserException;
 
 import org.jivesoftware.smackx.xhtmlim.packet.XHTMLExtension;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class XHTMLExtensionProviderTest {
     public static final String XHTML_EXTENSION_SAMPLE_RESOURCE_NAME = "xhtml.xml";

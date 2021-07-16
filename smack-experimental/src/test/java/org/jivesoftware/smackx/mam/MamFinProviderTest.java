@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.util.PacketParserUtils;
 import org.jivesoftware.smack.xml.XmlPullParser;
 
@@ -34,7 +33,7 @@ import org.junit.jupiter.api.Test;
 
 public class MamFinProviderTest extends MamTest {
 
-    static final String exmapleMamFinXml = "<fin xmlns='urn:xmpp:mam:1' stable='true'>"
+    static final String exmapleMamFinXml = "<fin xmlns='urn:xmpp:mam:2' stable='true'>"
             + "<set xmlns='http://jabber.org/protocol/rsm'>" + "<max>10</max>" + "<after>09af3-cc343-b409f</after>"
             + "</set>" + "</fin>";
 
@@ -56,7 +55,7 @@ public class MamFinProviderTest extends MamTest {
     public void checkQueryLimitedResults() throws Exception {
         // @formatter:off
         final String IQ_LIMITED_RESULTS_EXAMPLE = "<iq type='result' id='u29303'>"
-                        + "<fin xmlns='urn:xmpp:mam:1' complete='true'>"
+                        + "<fin xmlns='urn:xmpp:mam:2' complete='true'>"
                         + "<set xmlns='http://jabber.org/protocol/rsm'>"
                         + "<first index='0'>23452-4534-1</first>"
                         + "<last>390-2342-22</last>" + "<count>16</count>"
@@ -68,7 +67,7 @@ public class MamFinProviderTest extends MamTest {
         IQ iq = PacketParserUtils.parseStanza(IQ_LIMITED_RESULTS_EXAMPLE);
 
         MamFinIQ mamFinIQ = (MamFinIQ) iq;
-        assertEquals(mamFinIQ.getType(), Type.result);
+        assertEquals(mamFinIQ.getType(), IQ.Type.result);
 
         assertTrue(mamFinIQ.isComplete());
         assertEquals(mamFinIQ.getRSMSet().getCount(), 16);

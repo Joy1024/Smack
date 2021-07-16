@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2003-2007 Jive Software.
+ * Copyright 2003-2007 Jive Software, 2018-2021 Florian Schmaus.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 
 package org.jivesoftware.smack;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -26,6 +28,8 @@ import java.util.Set;
 
 import javax.net.ssl.HostnameVerifier;
 
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnectionConfiguration;
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnectionModuleDescriptor;
 import org.jivesoftware.smack.compression.XMPPInputOutputStream;
 import org.jivesoftware.smack.debugger.ReflectionDebuggerFactory;
 import org.jivesoftware.smack.debugger.SmackDebuggerFactory;
@@ -50,6 +54,18 @@ import org.jivesoftware.smack.util.Objects;
  */
 public final class SmackConfiguration {
 
+    public static final String SMACK_URL_STRING = "https://igniterealtime.org/projects/smack";
+
+    public static final URL SMACK_URL;
+
+    static {
+        try {
+            SMACK_URL = new URL(SMACK_URL_STRING);
+        } catch (MalformedURLException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     private static int defaultPacketReplyTimeout = 5000;
     private static int packetCollectorSize = 5000;
 
@@ -70,7 +86,7 @@ public final class SmackConfiguration {
      * <li> Interpreted Packets -- shows XML packets from the server as parsed by Smack.
      * </ul>
      * Debugging can be enabled by setting this field to true, or by setting the Java system
-     * property <tt>smack.debugEnabled</tt> to true. The system property can be set on the
+     * property <code>smack.debugEnabled</code> to true. The system property can be set on the
      * command line such as "java SomeApp -Dsmack.debugEnabled=true".
      */
     public static boolean DEBUG = false;
@@ -89,33 +105,12 @@ public final class SmackConfiguration {
      * Returns the Smack version information, eg "1.3.0".
      *
      * @return the Smack version information.
+     * @deprecated use {@link Smack#getVersion()} instead.
      */
+    @Deprecated
+    // TODO: Remove in Smack 4.6
     public static String getVersion() {
         return SmackInitialization.SMACK_VERSION;
-    }
-
-    /**
-     * Returns the number of milliseconds to wait for a response from
-     * the server. The default value is 5000 ms.
-     *
-     * @return the milliseconds to wait for a response from the server
-     * @deprecated use {@link #getDefaultReplyTimeout()} instead.
-     */
-    @Deprecated
-    public static int getDefaultPacketReplyTimeout() {
-        return getDefaultReplyTimeout();
-    }
-
-    /**
-     * Sets the number of milliseconds to wait for a response from
-     * the server.
-     *
-     * @param timeout the milliseconds to wait for a response from the server
-     * @deprecated use {@link #setDefaultReplyTimeout(int)} instead.
-     */
-    @Deprecated
-    public static void setDefaultPacketReplyTimeout(int timeout) {
-        setDefaultReplyTimeout(timeout);
     }
 
     /**
@@ -227,7 +222,7 @@ public final class SmackConfiguration {
     /**
      * Set the default parsing exception callback for all newly created connections.
      *
-     * @param callback
+     * @param callback TODO javadoc me please
      * @see ParsingExceptionCallback
      */
     public static void setDefaultParsingExceptionCallback(ParsingExceptionCallback callback) {
@@ -251,13 +246,8 @@ public final class SmackConfiguration {
     /**
      * Get compression handlers.
      *
-     * @deprecated use {@link #getCompressionHandlers()} instead.
+     * @return a list of compression handlers.
      */
-    @Deprecated
-    public static List<XMPPInputOutputStream> getCompresionHandlers() {
-        return getCompressionHandlers();
-    }
-
     public static List<XMPPInputOutputStream> getCompressionHandlers() {
         List<XMPPInputOutputStream> res = new ArrayList<>(compressionHandlers.size());
         for (XMPPInputOutputStream ios : compressionHandlers) {
@@ -296,7 +286,7 @@ public final class SmackConfiguration {
      * package is disabled (but can be manually enabled).
      * </p>
      *
-     * @param className
+     * @param className TODO javadoc me please
      */
     public static void addDisabledSmackClass(String className) {
         disabledSmackClasses.add(className);
@@ -353,11 +343,10 @@ public final class SmackConfiguration {
 
     public enum UnknownIqRequestReplyMode {
         doNotReply,
-        replyFeatureNotImplemented,
-        replyServiceUnavailable,
+        reply,
     }
 
-    private static UnknownIqRequestReplyMode unknownIqRequestReplyMode = UnknownIqRequestReplyMode.replyFeatureNotImplemented;
+    private static UnknownIqRequestReplyMode unknownIqRequestReplyMode = UnknownIqRequestReplyMode.reply;
 
     public static UnknownIqRequestReplyMode getUnknownIqRequestReplyMode() {
         return unknownIqRequestReplyMode;
@@ -382,4 +371,19 @@ public final class SmackConfiguration {
         return defaultConcurrencyLevelLimit;
     }
 
+    private static final Set<Class<? extends ModularXmppClientToServerConnectionModuleDescriptor>> KNOWN_MODULES = new HashSet<>();
+
+    public static boolean addModule(Class<? extends ModularXmppClientToServerConnectionModuleDescriptor> moduleDescriptor) {
+        synchronized (KNOWN_MODULES) {
+            return KNOWN_MODULES.add(moduleDescriptor);
+        }
+    }
+
+    public static void addAllKnownModulesTo(ModularXmppClientToServerConnectionConfiguration.Builder builder) {
+        synchronized (KNOWN_MODULES) {
+            for (Class<? extends ModularXmppClientToServerConnectionModuleDescriptor> moduleDescriptor : KNOWN_MODULES) {
+                builder.addModule(moduleDescriptor);
+            }
+        }
+    }
 }

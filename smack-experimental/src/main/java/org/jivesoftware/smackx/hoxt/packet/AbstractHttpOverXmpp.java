@@ -16,6 +16,9 @@
  */
 package org.jivesoftware.smackx.hoxt.packet;
 
+import javax.xml.namespace.QName;
+
+import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.packet.NamedElement;
 import org.jivesoftware.smack.util.Objects;
@@ -145,14 +148,22 @@ public abstract class AbstractHttpOverXmpp extends IQ {
         protected abstract B getThis();
     }
 
+    private abstract static class HoxExtensionElement implements ExtensionElement {
+        @Override
+        public final String getNamespace() {
+            return NAMESPACE;
+        }
+    }
+
     /**
      * Representation of Data element.
      * <p>
      * This class is immutable.
      */
-    public static class Data implements NamedElement {
+    public static class Data extends HoxExtensionElement {
 
         public static final String ELEMENT = "data";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final NamedElement child;
 
@@ -172,9 +183,9 @@ public abstract class AbstractHttpOverXmpp extends IQ {
          */
         @Override
         public XmlStringBuilder toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
+            XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
             xml.rightAngleBracket();
-            xml.element(child);
+            xml.append(child);
             xml.closeElement(this);
             return xml;
         }
@@ -199,9 +210,10 @@ public abstract class AbstractHttpOverXmpp extends IQ {
      * <p>
      * This class is immutable.
      */
-    public static class Text implements NamedElement {
+    public static class Text extends HoxExtensionElement {
 
         public static final String ELEMENT = "text";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final String text;
 
@@ -216,17 +228,15 @@ public abstract class AbstractHttpOverXmpp extends IQ {
 
         @Override
         public XmlStringBuilder toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
-            xml.rightAngleBracket();
-            xml.optAppend(text);
-            xml.closeElement(this);
+            XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
+            xml.optTextChild(text, this);
             return xml;
         }
 
         /**
          * Returns text of this element.
          *
-         * @return text
+         * @return text TODO javadoc me please
          */
         public String getText() {
             return text;
@@ -243,9 +253,10 @@ public abstract class AbstractHttpOverXmpp extends IQ {
      * <p>
      * This class is immutable.
      */
-    public static class Base64 implements NamedElement {
+    public static class Base64 extends HoxExtensionElement {
 
         public static final String ELEMENT = "base64";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final String text;
 
@@ -260,17 +271,15 @@ public abstract class AbstractHttpOverXmpp extends IQ {
 
         @Override
         public XmlStringBuilder toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
-            xml.rightAngleBracket();
-            xml.optAppend(text);
-            xml.closeElement(this);
+            XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
+            xml.optTextChild(text, this);
             return xml;
         }
 
         /**
          * Returns text of this element.
          *
-         * @return text
+         * @return text TODO javadoc me please
          */
         public String getText() {
             return text;
@@ -287,9 +296,10 @@ public abstract class AbstractHttpOverXmpp extends IQ {
      * <p>
      * This class is immutable.
      */
-    public static class Xml implements NamedElement {
+    public static class Xml extends HoxExtensionElement {
 
         public static final String ELEMENT = "xml";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final String text;
 
@@ -304,17 +314,15 @@ public abstract class AbstractHttpOverXmpp extends IQ {
 
         @Override
         public XmlStringBuilder toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
-            xml.rightAngleBracket();
-            xml.optAppend(text);
-            xml.closeElement(this);
+            XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
+            xml.optTextChild(text, this);
             return xml;
         }
 
         /**
          * Returns text of this element.
          *
-         * @return text
+         * @return text TODO javadoc me please
          */
         public String getText() {
             return text;
@@ -331,9 +339,10 @@ public abstract class AbstractHttpOverXmpp extends IQ {
      * <p>
      * This class is immutable.
      */
-    public static class ChunkedBase64 implements NamedElement {
+    public static class ChunkedBase64 extends HoxExtensionElement {
 
         public static final String ELEMENT = "chunkedBase64";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final String streamId;
 
@@ -348,7 +357,7 @@ public abstract class AbstractHttpOverXmpp extends IQ {
 
         @Override
         public XmlStringBuilder toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
+            XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
             xml.attribute("streamId", streamId);
             xml.closeEmptyElement();
             return xml;
@@ -374,9 +383,10 @@ public abstract class AbstractHttpOverXmpp extends IQ {
      * <p>
      * This class is immutable.
      */
-    public static class Ibb implements NamedElement {
+    public static class Ibb extends HoxExtensionElement {
 
         public static final String ELEMENT = "ibb";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final String sid;
 
@@ -391,7 +401,7 @@ public abstract class AbstractHttpOverXmpp extends IQ {
 
         @Override
         public XmlStringBuilder toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-            XmlStringBuilder xml = new XmlStringBuilder(this);
+            XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
             xml.attribute("sid", sid);
             xml.closeEmptyElement();
             return xml;

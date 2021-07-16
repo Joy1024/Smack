@@ -22,10 +22,11 @@ import java.util.List;
 import java.util.logging.Logger;
 
 import org.jivesoftware.smack.SmackException;
+import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
-import org.jivesoftware.smack.StanzaCollector;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
+import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.packet.SimpleIQ;
 import org.jivesoftware.smack.packet.XmlEnvironment;
 import org.jivesoftware.smack.provider.IQProvider;
@@ -36,6 +37,10 @@ import org.jivesoftware.smack.xml.XmlPullParserException;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.disco.packet.DiscoverInfo;
 import org.jivesoftware.smackx.disco.packet.DiscoverItems;
+
+import org.jxmpp.jid.DomainBareJid;
+import org.jxmpp.jid.impl.JidCreate;
+import org.jxmpp.stringprep.XmppStringprepException;
 
 /**
  * STUN IQ Stanza used to request and retrieve a STUN server and port to make p2p connections easier. STUN is usually used by Jingle Media Transmission between two parties that are behind NAT.
@@ -101,7 +106,7 @@ public class STUN extends SimpleIQ {
     /**
      * Set Public Ip returned from the XMPP server
      *
-     * @param publicIp
+     * @param publicIp TODO javadoc me please
      */
     private void setPublicIp(String publicIp) {
         this.publicIp = publicIp;
@@ -172,27 +177,29 @@ public class STUN extends SimpleIQ {
      * Get a new STUN Server Address and port from the server.
      * If a error occurs or the server don't support STUN Service, null is returned.
      *
-     * @param connection
+     * @param connection TODO javadoc me please
      * @return the STUN server address
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
      */
-    @SuppressWarnings("deprecation")
-    public static STUN getSTUNServer(XMPPConnection connection) throws NotConnectedException, InterruptedException {
+    public static STUN getSTUNServer(XMPPConnection connection) throws NotConnectedException, InterruptedException, NoResponseException, XMPPErrorException {
 
         if (!connection.isConnected()) {
             return null;
         }
 
         STUN stunPacket = new STUN();
-        stunPacket.setTo(DOMAIN + "." + connection.getXMPPServiceDomain());
+        DomainBareJid jid;
+        try {
+            jid = JidCreate.domainBareFrom(DOMAIN + "." + connection.getXMPPServiceDomain());
+        } catch (XmppStringprepException e) {
+            throw new AssertionError(e);
+        }
+        stunPacket.setTo(jid);
 
-        StanzaCollector collector = connection.createStanzaCollectorAndSend(stunPacket);
-
-        STUN response = collector.nextResult();
-
-        // Cancel the collector.
-        collector.cancel();
+        STUN response = connection.sendIqRequestAndWaitForResponse(stunPacket);
 
         return response;
     }
@@ -202,9 +209,9 @@ public class STUN extends SimpleIQ {
      *
      * @param connection the connection
      * @return true if the server support STUN
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws InterruptedException
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public static boolean serviceAvailable(XMPPConnection connection) throws XMPPException, SmackException, InterruptedException {
 

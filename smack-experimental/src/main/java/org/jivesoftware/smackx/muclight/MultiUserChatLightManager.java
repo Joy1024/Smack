@@ -31,7 +31,6 @@ import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.filter.IQReplyFilter;
 import org.jivesoftware.smack.filter.StanzaFilter;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.disco.packet.DiscoverItems;
@@ -54,7 +53,7 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Get a instance of a MUC Light manager for the given connection.
      *
-     * @param connection
+     * @param connection TODO javadoc me please
      * @return a MUCLight manager.
      */
     public static synchronized MultiUserChatLightManager getInstanceFor(XMPPConnection connection) {
@@ -79,7 +78,7 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Obtain the MUC Light.
      *
-     * @param jid
+     * @param jid TODO javadoc me please
      * @return the MUCLight.
      */
     public synchronized MultiUserChatLight getMultiUserChatLight(EntityBareJid jid) {
@@ -103,12 +102,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Returns true if Multi-User Chat Light feature is supported by the server.
      *
-     * @param mucLightService
+     * @param mucLightService TODO javadoc me please
      * @return true if Multi-User Chat Light feature is supported by the server.
-     * @throws NotConnectedException
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean isFeatureSupported(DomainBareJid mucLightService)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -119,12 +118,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Returns a List of the rooms the user occupies.
      *
-     * @param mucLightService
+     * @param mucLightService TODO javadoc me please
      * @return a List of the rooms the user occupies.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public List<Jid> getOccupiedRooms(DomainBareJid mucLightService)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -144,10 +143,10 @@ public final class MultiUserChatLightManager extends Manager {
      * Returns a collection with the XMPP addresses of the MUC Light services.
      *
      * @return a collection with the XMPP addresses of the MUC Light services.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public List<DomainBareJid> getLocalServices()
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -158,12 +157,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Get users and rooms blocked.
      *
-     * @param mucLightService
+     * @param mucLightService TODO javadoc me please
      * @return the list of users and rooms blocked
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public List<Jid> getUsersAndRoomsBlocked(DomainBareJid mucLightService)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -184,12 +183,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Get rooms blocked.
      *
-     * @param mucLightService
+     * @param mucLightService TODO javadoc me please
      * @return the list of rooms blocked
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public List<Jid> getRoomsBlocked(DomainBareJid mucLightService)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -206,12 +205,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Get users blocked.
      *
-     * @param mucLightService
+     * @param mucLightService TODO javadoc me please
      * @return the list of users blocked
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public List<Jid> getUsersBlocked(DomainBareJid mucLightService)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -228,7 +227,7 @@ public final class MultiUserChatLightManager extends Manager {
     private MUCLightBlockingIQ getBlockingList(DomainBareJid mucLightService)
             throws NoResponseException, XMPPErrorException, InterruptedException, NotConnectedException {
         MUCLightBlockingIQ mucLightBlockingIQ = new MUCLightBlockingIQ(null, null);
-        mucLightBlockingIQ.setType(Type.get);
+        mucLightBlockingIQ.setType(IQ.Type.get);
         mucLightBlockingIQ.setTo(mucLightService);
 
         StanzaFilter responseFilter = new IQReplyFilter(mucLightBlockingIQ, connection());
@@ -242,12 +241,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Block a room.
      *
-     * @param mucLightService
-     * @param roomJid
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param mucLightService TODO javadoc me please
+     * @param roomJid TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void blockRoom(DomainBareJid mucLightService, Jid roomJid)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -259,12 +258,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Block rooms.
      *
-     * @param mucLightService
-     * @param roomsJids
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param mucLightService TODO javadoc me please
+     * @param roomsJids TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void blockRooms(DomainBareJid mucLightService, List<Jid> roomsJids)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -278,20 +277,20 @@ public final class MultiUserChatLightManager extends Manager {
     private void sendBlockRooms(DomainBareJid mucLightService, HashMap<Jid, Boolean> rooms)
             throws NoResponseException, XMPPErrorException, InterruptedException, NotConnectedException {
         MUCLightBlockingIQ mucLightBlockingIQ = new MUCLightBlockingIQ(rooms, null);
-        mucLightBlockingIQ.setType(Type.set);
+        mucLightBlockingIQ.setType(IQ.Type.set);
         mucLightBlockingIQ.setTo(mucLightService);
-        connection().createStanzaCollectorAndSend(mucLightBlockingIQ).nextResultOrThrow();
+        connection().sendIqRequestAndWaitForResponse(mucLightBlockingIQ);
     }
 
     /**
      * Block a user.
      *
-     * @param mucLightService
-     * @param userJid
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param mucLightService TODO javadoc me please
+     * @param userJid TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void blockUser(DomainBareJid mucLightService, Jid userJid)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -303,12 +302,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Block users.
      *
-     * @param mucLightService
-     * @param usersJids
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param mucLightService TODO javadoc me please
+     * @param usersJids TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void blockUsers(DomainBareJid mucLightService, List<Jid> usersJids)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -322,20 +321,20 @@ public final class MultiUserChatLightManager extends Manager {
     private void sendBlockUsers(DomainBareJid mucLightService, HashMap<Jid, Boolean> users)
             throws NoResponseException, XMPPErrorException, InterruptedException, NotConnectedException {
         MUCLightBlockingIQ mucLightBlockingIQ = new MUCLightBlockingIQ(null, users);
-        mucLightBlockingIQ.setType(Type.set);
+        mucLightBlockingIQ.setType(IQ.Type.set);
         mucLightBlockingIQ.setTo(mucLightService);
-        connection().createStanzaCollectorAndSend(mucLightBlockingIQ).nextResultOrThrow();
+        connection().sendIqRequestAndWaitForResponse(mucLightBlockingIQ);
     }
 
     /**
      * Unblock a room.
      *
-     * @param mucLightService
-     * @param roomJid
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param mucLightService TODO javadoc me please
+     * @param roomJid TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void unblockRoom(DomainBareJid mucLightService, Jid roomJid)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -347,12 +346,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Unblock rooms.
      *
-     * @param mucLightService
-     * @param roomsJids
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param mucLightService TODO javadoc me please
+     * @param roomsJids TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void unblockRooms(DomainBareJid mucLightService, List<Jid> roomsJids)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -366,20 +365,20 @@ public final class MultiUserChatLightManager extends Manager {
     private void sendUnblockRooms(DomainBareJid mucLightService, HashMap<Jid, Boolean> rooms)
             throws NoResponseException, XMPPErrorException, InterruptedException, NotConnectedException {
         MUCLightBlockingIQ mucLightBlockingIQ = new MUCLightBlockingIQ(rooms, null);
-        mucLightBlockingIQ.setType(Type.set);
+        mucLightBlockingIQ.setType(IQ.Type.set);
         mucLightBlockingIQ.setTo(mucLightService);
-        connection().createStanzaCollectorAndSend(mucLightBlockingIQ).nextResultOrThrow();
+        connection().sendIqRequestAndWaitForResponse(mucLightBlockingIQ);
     }
 
     /**
      * Unblock a user.
      *
-     * @param mucLightService
-     * @param userJid
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param mucLightService TODO javadoc me please
+     * @param userJid TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void unblockUser(DomainBareJid mucLightService, Jid userJid)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -391,12 +390,12 @@ public final class MultiUserChatLightManager extends Manager {
     /**
      * Unblock users.
      *
-     * @param mucLightService
-     * @param usersJids
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param mucLightService TODO javadoc me please
+     * @param usersJids TODO javadoc me please
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void unblockUsers(DomainBareJid mucLightService, List<Jid> usersJids)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -410,9 +409,9 @@ public final class MultiUserChatLightManager extends Manager {
     private void sendUnblockUsers(DomainBareJid mucLightService, HashMap<Jid, Boolean> users)
             throws NoResponseException, XMPPErrorException, InterruptedException, NotConnectedException {
         MUCLightBlockingIQ mucLightBlockingIQ = new MUCLightBlockingIQ(null, users);
-        mucLightBlockingIQ.setType(Type.set);
+        mucLightBlockingIQ.setType(IQ.Type.set);
         mucLightBlockingIQ.setTo(mucLightService);
-        connection().createStanzaCollectorAndSend(mucLightBlockingIQ).nextResultOrThrow();
+        connection().sendIqRequestAndWaitForResponse(mucLightBlockingIQ);
     }
 
 }

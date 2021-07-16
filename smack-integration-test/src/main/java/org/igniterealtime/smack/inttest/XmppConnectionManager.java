@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2018-2019 Florian Schmaus
+ * Copyright 2018-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,12 +38,15 @@ import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnection;
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnectionConfiguration;
+import org.jivesoftware.smack.compression.CompressionModuleDescriptor;
 import org.jivesoftware.smack.tcp.XMPPTCPConnection;
 import org.jivesoftware.smack.tcp.XMPPTCPConnectionConfiguration;
-import org.jivesoftware.smack.tcp.XmppNioTcpConnection;
 import org.jivesoftware.smack.util.MultiMap;
 import org.jivesoftware.smack.util.StringUtils;
-
+import org.jivesoftware.smack.websocket.java11.Java11WebSocketFactory;
+import org.jivesoftware.smack.websocket.okhttp.OkHttpWebSocketFactory;
 import org.jivesoftware.smackx.admin.ServiceAdministrationManager;
 import org.jivesoftware.smackx.iqregister.AccountManager;
 
@@ -54,80 +57,129 @@ import org.jxmpp.jid.impl.JidCreate;
 import org.jxmpp.jid.parts.Localpart;
 import org.jxmpp.stringprep.XmppStringprepException;
 
-public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
+public class XmppConnectionManager {
 
     private static final Logger LOGGER = Logger.getLogger(XmppConnectionManager.class.getName());
 
-    private static final Map<Class<? extends AbstractXMPPConnection>, XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>> CONNECTION_DESCRIPTORS = new ConcurrentHashMap<>();
+    private static final XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> DEFAULT_CONNECTION_DESCRIPTOR;
+
+    private static final Map<String, XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>> NICKNAME_CONNECTION_DESCRIPTORS = new HashMap<>();
+
+    private static final MultiMap<
+        Class<? extends AbstractXMPPConnection>,
+        XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>
+    > CONNECTION_DESCRIPTORS = new MultiMap<>();
 
     static {
         try {
-            addConnectionDescriptor(XmppNioTcpConnection.class, XMPPTCPConnectionConfiguration.class);
-            addConnectionDescriptor(XMPPTCPConnection.class, XMPPTCPConnectionConfiguration.class);
-        } catch (ClassNotFoundException | NoSuchMethodException | SecurityException e) {
+            DEFAULT_CONNECTION_DESCRIPTOR = XmppConnectionDescriptor.buildWith(XMPPTCPConnection.class, XMPPTCPConnectionConfiguration.class)
+                            .withNickname("tcp")
+                            .build();
+            addConnectionDescriptor(DEFAULT_CONNECTION_DESCRIPTOR);
+
+            addConnectionDescriptor(
+                            XmppConnectionDescriptor.buildWith(ModularXmppClientToServerConnection.class, ModularXmppClientToServerConnectionConfiguration.class)
+                            .withNickname("modular")
+                            .build()
+            );
+            addConnectionDescriptor(
+                            XmppConnectionDescriptor.buildWith(ModularXmppClientToServerConnection.class, ModularXmppClientToServerConnectionConfiguration.class, ModularXmppClientToServerConnectionConfiguration.Builder.class)
+                            .withNickname("modular-nocompress")
+                            .applyExtraConfguration(cb -> cb.removeModule(CompressionModuleDescriptor.class))
+                            .build()
+            );
+            addConnectionDescriptor(
+                            XmppConnectionDescriptor.buildWebsocketDescriptor("modular-websocket-okhttp", OkHttpWebSocketFactory.class)
+            );
+            addConnectionDescriptor(
+                            XmppConnectionDescriptor.buildWebsocketDescriptor("modular-websocket-java11", Java11WebSocketFactory.class)
+            );
+        } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException
+                        | IllegalArgumentException | InvocationTargetException e) {
             throw new AssertionError(e);
         }
     }
 
-    public static void addConnectionDescriptor(Class<? extends AbstractXMPPConnection> connectionClass,
-                    Class<? extends ConnectionConfiguration> connectionConfigurationClass) throws ClassNotFoundException, NoSuchMethodException, SecurityException {
-        XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> connectionDescriptor = new XmppConnectionDescriptor<>(
-                        connectionClass, connectionConfigurationClass);
-        addConnectionDescriptor(connectionDescriptor);
-    }
-
-    public static void addConnectionDescriptor(
+    public static boolean addConnectionDescriptor(
                     XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> connectionDescriptor) {
+        String nickname = connectionDescriptor.getNickname();
         Class<? extends AbstractXMPPConnection> connectionClass = connectionDescriptor.getConnectionClass();
-        CONNECTION_DESCRIPTORS.put(connectionClass, connectionDescriptor);
+
+        boolean alreadyExisted;
+        synchronized (CONNECTION_DESCRIPTORS) {
+            alreadyExisted = removeConnectionDescriptor(nickname);
+
+            CONNECTION_DESCRIPTORS.put(connectionClass, connectionDescriptor);
+            NICKNAME_CONNECTION_DESCRIPTORS.put(connectionDescriptor.getNickname(), connectionDescriptor);
+        }
+        return alreadyExisted;
     }
 
-    public static void removeConnectionDescriptor(Class<? extends AbstractXMPPConnection> connectionClass) {
-        CONNECTION_DESCRIPTORS.remove(connectionClass);
+    public static boolean removeConnectionDescriptor(String nickname) {
+        synchronized (CONNECTION_DESCRIPTORS) {
+            XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> connectionDescriptor = NICKNAME_CONNECTION_DESCRIPTORS.remove(nickname);
+            if (connectionDescriptor == null) {
+                return false;
+            }
+
+            boolean removed = CONNECTION_DESCRIPTORS.removeOne(connectionDescriptor.getConnectionClass(), connectionDescriptor);
+            assert removed;
+        }
+
+        return true;
     }
 
-    private final XmppConnectionDescriptor<DC, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> defaultConnectionDescriptor;
+    private final XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> defaultConnectionDescriptor;
 
-    private final Map<Class<? extends AbstractXMPPConnection>, XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>> connectionDescriptors = new HashMap<>(
-                    CONNECTION_DESCRIPTORS.size());
+    private final Map<String, XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>> nicknameConnectionDescriptors;
 
-    private final SmackIntegrationTestFramework<?> sinttestFramework;
+    private final MultiMap<
+        Class<? extends AbstractXMPPConnection>,
+        XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>
+    > connectionDescriptors;
+
+    private final SmackIntegrationTestFramework sinttestFramework;
     private final Configuration sinttestConfiguration;
     private final String testRunId;
 
-    private final DC accountRegistrationConnection;
+    private final AbstractXMPPConnection accountRegistrationConnection;
     private final ServiceAdministrationManager adminManager;
     private final AccountManager accountManager;
 
     /**
      * One of the three main connections. The type of the main connections is the default connection type.
      */
-    DC conOne, conTwo, conThree;
+    AbstractXMPPConnection conOne, conTwo, conThree;
 
     /**
      * A pool of authenticated and free to use connections.
      */
-    private final MultiMap<Class<? extends AbstractXMPPConnection>, AbstractXMPPConnection> connectionPool = new MultiMap<>();
+    private final MultiMap<XmppConnectionDescriptor<?, ?, ?>, AbstractXMPPConnection> connectionPool = new MultiMap<>();
 
     /**
      * A list of all ever created connections.
      */
-    private final List<AbstractXMPPConnection> connections = new ArrayList<>();
+    private final Map<AbstractXMPPConnection, XmppConnectionDescriptor<?, ?, ?>> connections = new ConcurrentHashMap<>();
 
-    @SuppressWarnings("unchecked")
-    XmppConnectionManager(SmackIntegrationTestFramework<?> sinttestFramework,
-            Class<? extends DC> defaultConnectionClass)
+    XmppConnectionManager(SmackIntegrationTestFramework sinttestFramework)
             throws SmackException, IOException, XMPPException, InterruptedException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+        synchronized (CONNECTION_DESCRIPTORS) {
+            connectionDescriptors = CONNECTION_DESCRIPTORS.clone();
+            nicknameConnectionDescriptors = new HashMap<>(NICKNAME_CONNECTION_DESCRIPTORS);
+        }
+
         this.sinttestFramework = sinttestFramework;
         this.sinttestConfiguration = sinttestFramework.config;
         this.testRunId = sinttestFramework.testRunResult.testRunId;
 
-        connectionDescriptors.putAll(CONNECTION_DESCRIPTORS);
-
-        defaultConnectionDescriptor = (XmppConnectionDescriptor<DC, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>) connectionDescriptors.get(
-                        defaultConnectionClass);
-        if (defaultConnectionDescriptor == null) {
-            throw new IllegalArgumentException("Could not find a connection descriptor for " + defaultConnectionClass);
+        String configuredDefaultConnectionNickname = sinttestConfiguration.defaultConnectionNickname;
+        if (configuredDefaultConnectionNickname != null) {
+            defaultConnectionDescriptor = nicknameConnectionDescriptors.get(configuredDefaultConnectionNickname);
+            if (defaultConnectionDescriptor == null) {
+                throw new IllegalArgumentException("Could not find a connection descriptor for connection nickname '" + configuredDefaultConnectionNickname + "'");
+            }
+        } else {
+            defaultConnectionDescriptor = DEFAULT_CONNECTION_DESCRIPTOR;
         }
 
         switch (sinttestConfiguration.accountRegistration) {
@@ -157,11 +209,11 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
         }
     }
 
-    SmackIntegrationTestEnvironment<DC> prepareEnvironment() throws KeyManagementException, NoSuchAlgorithmException,
+    SmackIntegrationTestEnvironment prepareEnvironment() throws KeyManagementException, NoSuchAlgorithmException,
             InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException,
             SmackException, IOException, XMPPException, InterruptedException {
         prepareMainConnections();
-        return new SmackIntegrationTestEnvironment<DC>(conOne, conTwo, conThree,
+        return new SmackIntegrationTestEnvironment(conOne, conTwo, conThree,
                 sinttestFramework.testRunResult.testRunId, sinttestConfiguration, this);
     }
 
@@ -169,9 +221,9 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
             IllegalAccessException, IllegalArgumentException, InvocationTargetException, SmackException, IOException,
             XMPPException, InterruptedException {
         final int mainAccountCount = AccountNum.values().length;
-        List<DC> connections = new ArrayList<>(mainAccountCount);
+        List<AbstractXMPPConnection> connections = new ArrayList<>(mainAccountCount);
         for (AccountNum mainAccountNum : AccountNum.values()) {
-            DC mainConnection = getConnectedMainConnectionFor(mainAccountNum);
+            AbstractXMPPConnection mainConnection = getConnectedMainConnectionFor(mainAccountNum);
             connections.add(mainConnection);
         }
         conOne = connections.get(0);
@@ -179,24 +231,24 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
         conThree = connections.get(2);
     }
 
-    public Class<? extends AbstractXMPPConnection> getDefaultConnectionClass() {
-        return defaultConnectionDescriptor.getConnectionClass();
+    public XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> getDefaultConnectionDescriptor() {
+        return defaultConnectionDescriptor;
     }
 
-    public Set<Class<? extends AbstractXMPPConnection>> getConnectionClasses() {
-        return Collections.unmodifiableSet(connectionDescriptors.keySet());
+    public Collection<XmppConnectionDescriptor<? extends AbstractXMPPConnection, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>> getConnectionDescriptors() {
+        return Collections.unmodifiableCollection(nicknameConnectionDescriptors.values());
     }
 
     @SuppressWarnings("unchecked")
     public <C extends AbstractXMPPConnection> XmppConnectionDescriptor<C, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> getConnectionDescriptorFor(
                     Class<C> connectionClass) {
-        return (XmppConnectionDescriptor<C, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>) connectionDescriptors.get(
+        return (XmppConnectionDescriptor<C, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>) connectionDescriptors.getFirst(
                         connectionClass);
     }
 
     void disconnectAndCleanup() throws InterruptedException {
         int successfullyDeletedAccountsCount = 0;
-        for (AbstractXMPPConnection connection : connections) {
+        for (AbstractXMPPConnection connection : connections.keySet()) {
             if (sinttestConfiguration.accountRegistration == AccountRegistration.inBandRegistration) {
                 // Note that we use the account manager from the to-be-deleted connection.
                 AccountManager accountManager = AccountManager.getInstance(connection);
@@ -249,7 +301,7 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
 
     private static final String USERNAME_PREFIX = "smack-inttest";
 
-    private DC getConnectedMainConnectionFor(AccountNum accountNum) throws SmackException, IOException, XMPPException,
+    private AbstractXMPPConnection getConnectedMainConnectionFor(AccountNum accountNum) throws SmackException, IOException, XMPPException,
             InterruptedException, KeyManagementException, NoSuchAlgorithmException, InstantiationException,
             IllegalAccessException, IllegalArgumentException, InvocationTargetException {
         String middlefix;
@@ -283,7 +335,7 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
             registerAccount(finalAccountUsername, finalAccountPassword);
         }
 
-        DC mainConnection = defaultConnectionDescriptor.construct(sinttestConfiguration, (builder) -> {
+        AbstractXMPPConnection mainConnection = defaultConnectionDescriptor.construct(sinttestConfiguration, builder -> {
             try {
                 builder.setUsernameAndPassword(finalAccountUsername, finalAccountPassword)
                     .setResource(middlefix + '-' + testRunId);
@@ -292,7 +344,7 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
             }
         });
 
-        connections.add(mainConnection);
+        connections.put(mainConnection, defaultConnectionDescriptor);
 
         mainConnection.connect();
         mainConnection.login();
@@ -331,13 +383,13 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
         }
     }
 
-    <C extends AbstractXMPPConnection> List<C> constructConnectedConnections(Class<C> connectionClass, int count)
+    <C extends AbstractXMPPConnection> List<C> constructConnectedConnections(XmppConnectionDescriptor<C, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>  connectionDescriptor, int count)
                     throws InterruptedException, SmackException, IOException, XMPPException {
         List<C> connections = new ArrayList<>(count);
 
         synchronized (connectionPool) {
             @SuppressWarnings("unchecked")
-            List<C> pooledConnections = (List<C>) connectionPool.getAll(connectionClass);
+            List<C> pooledConnections = (List<C>) connectionPool.getAll(connectionDescriptor);
             while (count > 0 && !pooledConnections.isEmpty()) {
                 C connection = pooledConnections.remove(pooledConnections.size() - 1);
                 connections.add(connection);
@@ -345,9 +397,6 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
             }
         }
 
-        @SuppressWarnings("unchecked")
-        XmppConnectionDescriptor<C, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> connectionDescriptor = (XmppConnectionDescriptor<C, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>>) connectionDescriptors
-                .get(connectionClass);
         for (int i = 0; i < count; i++) {
             C connection = constructConnectedConnection(connectionDescriptor);
             connections.add(connection);
@@ -367,7 +416,7 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
         return connection;
     }
 
-    DC constructConnection()
+    AbstractXMPPConnection constructConnection()
                     throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         return constructConnection(defaultConnectionDescriptor);
     }
@@ -398,7 +447,7 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
             throw new IllegalArgumentException(e);
         }
 
-        ConnectionConfigurationBuilderApplier usernameAndPasswordApplier = (configurationBuilder) -> {
+        ConnectionConfigurationBuilderApplier usernameAndPasswordApplier = configurationBuilder -> {
             configurationBuilder.setUsernameAndPassword(username, password);
         };
 
@@ -416,7 +465,7 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
             throw new IllegalStateException(e);
         }
 
-        connections.add(connection);
+        connections.put(connection, connectionDescriptor);
 
         return connection;
     }
@@ -434,9 +483,16 @@ public class XmppConnectionManager<DC extends AbstractXMPPConnection> {
         }
 
         if (connection.isAuthenticated()) {
-            synchronized (connectionPool) {
-                connectionPool.put(connectionClass, connection);
+            XmppConnectionDescriptor<?, ?, ?> connectionDescriptor = connections.get(connection);
+            if (connectionDescriptor == null) {
+                throw new IllegalStateException("Attempt to recycle unknown connection: " + connection);
             }
+
+            synchronized (connectionPool) {
+                connectionPool.put(connectionDescriptor, connection);
+            }
+        } else {
+            connection.disconnect();
         }
         // Note that we do not delete the account of the unauthenticated connection here, as it is done at the end of
         // the test run together with all other dynamically created accounts.

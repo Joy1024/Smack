@@ -20,8 +20,9 @@ package org.jivesoftware.smackx.address.packet;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
-import org.jivesoftware.smack.packet.NamedElement;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 
 import org.jxmpp.jid.Jid;
@@ -35,6 +36,7 @@ public class MultipleAddresses implements ExtensionElement {
 
     public static final String NAMESPACE = "http://jabber.org/protocol/address";
     public static final String ELEMENT = "addresses";
+    public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
     public enum Type {
         bcc,
@@ -129,9 +131,10 @@ public class MultipleAddresses implements ExtensionElement {
         return buf;
     }
 
-    public static final class Address implements NamedElement {
+    public static final class Address implements ExtensionElement {
 
         public static final String ELEMENT = "address";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final Type type;
         private Jid jid;
@@ -190,13 +193,18 @@ public class MultipleAddresses implements ExtensionElement {
 
         @Override
         public String getElementName() {
-            return ELEMENT;
+            return QNAME.getLocalPart();
+        }
+
+        @Override
+        public String getNamespace() {
+            return QNAME.getNamespaceURI();
         }
 
         @Override
         public XmlStringBuilder toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-            XmlStringBuilder buf = new XmlStringBuilder();
-            buf.halfOpenElement(this).attribute("type", type);
+            XmlStringBuilder buf = new XmlStringBuilder(this, enclosingNamespace);
+            buf.attribute("type", type);
             buf.optAttribute("jid", jid);
             buf.optAttribute("node", node);
             buf.optAttribute("desc", description);
@@ -209,5 +217,6 @@ public class MultipleAddresses implements ExtensionElement {
             buf.closeEmptyElement();
             return buf;
         }
+
     }
 }

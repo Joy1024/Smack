@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2014-2015 Florian Schmaus
+ * Copyright 2014-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,18 +32,18 @@ public class AbstractError {
 
     protected final String textNamespace;
     protected final Map<String, String> descriptiveTexts;
-    protected final List<ExtensionElement> extensions;
+    protected final List<XmlElement> extensions;
 
 
     protected AbstractError(Map<String, String> descriptiveTexts) {
         this(descriptiveTexts, null);
     }
 
-    protected AbstractError(Map<String, String> descriptiveTexts, List<ExtensionElement> extensions) {
+    protected AbstractError(Map<String, String> descriptiveTexts, List<XmlElement> extensions) {
         this(descriptiveTexts, null, extensions);
     }
 
-    protected AbstractError(Map<String, String> descriptiveTexts, String textNamespace, List<ExtensionElement> extensions) {
+    protected AbstractError(Map<String, String> descriptiveTexts, String textNamespace, List<XmlElement> extensions) {
         if (descriptiveTexts != null) {
             this.descriptiveTexts = descriptiveTexts;
         } else {
@@ -66,15 +66,23 @@ public class AbstractError {
      * @return the descriptive text or null.
      */
     public String getDescriptiveText() {
-        String defaultLocale = Locale.getDefault().getLanguage();
-        String descriptiveText = getDescriptiveText(defaultLocale);
-        if (descriptiveText == null) {
-            descriptiveText = getDescriptiveText("en");
-            if (descriptiveText == null) {
-                descriptiveText = getDescriptiveText("");
-            }
+        if (descriptiveTexts.isEmpty())
+            return null;
+        // attempt to obtain the text in the user's locale, the English text, or the "" default
+        Locale l = Locale.getDefault();
+        String[] tags = new String[] {
+                l.getLanguage() + "-" + l.getCountry() + "-" + l.getVariant(),
+                l.getLanguage() + "-" + l.getCountry(),
+                l.getLanguage(),
+                "en",
+                ""
+        };
+        for (String tag : tags) {
+            String descriptiveText = getDescriptiveText(tag);
+            if (descriptiveText != null)
+                return descriptiveText;
         }
-        return descriptiveText;
+        return descriptiveTexts.values().iterator().next();
     }
 
     /**
@@ -93,14 +101,14 @@ public class AbstractError {
 
     /**
      * Returns the first stanza extension that matches the specified element name and
-     * namespace, or <tt>null</tt> if it doesn't exist.
+     * namespace, or <code>null</code> if it doesn't exist.
      *
      * @param elementName the XML element name of the stanza extension.
      * @param namespace the XML element namespace of the stanza extension.
      * @param <PE> type of the ExtensionElement.
-     * @return the extension, or <tt>null</tt> if it doesn't exist.
+     * @return the extension, or <code>null</code> if it doesn't exist.
      */
-    public <PE extends ExtensionElement> PE getExtension(String elementName, String namespace) {
+    public <PE extends XmlElement> PE getExtension(String elementName, String namespace) {
         return PacketUtil.extensionElementFrom(extensions, elementName, namespace);
     }
 
@@ -114,15 +122,13 @@ public class AbstractError {
             xml.escape(text);
             xml.closeElement("text");
         }
-        for (ExtensionElement packetExtension : extensions) {
-            xml.append(packetExtension.toXML());
-        }
+        xml.append(extensions);
     }
 
     public abstract static class Builder<B extends Builder<B>> {
         protected String textNamespace;
         protected Map<String, String> descriptiveTexts;
-        protected List<ExtensionElement> extensions;
+        protected List<XmlElement> extensions;
 
         public B setDescriptiveTexts(Map<String, String> descriptiveTexts) {
             if (descriptiveTexts == null) {
@@ -167,7 +173,7 @@ public class AbstractError {
             return getThis();
         }
 
-        public B setExtensions(List<ExtensionElement> extensions) {
+        public B setExtensions(List<XmlElement> extensions) {
             if (this.extensions == null) {
                 this.extensions = extensions;
             }
@@ -177,7 +183,7 @@ public class AbstractError {
             return getThis();
         }
 
-        public B addExtension(ExtensionElement extension) {
+        public B addExtension(XmlElement extension) {
             if (extensions == null) {
                 extensions = new ArrayList<>();
             }

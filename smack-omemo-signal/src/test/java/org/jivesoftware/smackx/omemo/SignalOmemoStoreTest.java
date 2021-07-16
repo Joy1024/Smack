@@ -60,8 +60,8 @@ public class SignalOmemoStoreTest extends OmemoStoreTest<IdentityKeyPair, Identi
 
     /**
      * We are running this Test with multiple available OmemoStore implementations.
-     * @return
-     * @throws IOException
+     * @return the test parameters.
+     * @throws IOException if an I/O error occurred.
      */
     @Parameterized.Parameters
     public static Collection<Object[]> getParameters() throws IOException {

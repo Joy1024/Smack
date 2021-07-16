@@ -16,7 +16,7 @@
  */
 package org.jivesoftware.smackx.spoiler;
 
-import static org.jivesoftware.smack.test.util.XmlUnitUtils.assertXmlSimilar;
+import static org.jivesoftware.smack.test.util.XmlAssertUtil.assertXmlSimilar;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.Map;
 
 import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.packet.StanzaBuilder;
 import org.jivesoftware.smack.test.util.SmackTestSuite;
 import org.jivesoftware.smack.test.util.TestUtils;
 import org.jivesoftware.smack.xml.XmlPullParser;
@@ -40,10 +41,10 @@ public class SpoilerTest extends SmackTestSuite {
     public void emptySpoilerTest() throws Exception {
         final String xml = "<spoiler xmlns='urn:xmpp:spoiler:0'/>";
 
-        Message message = new Message();
+        Message message = StanzaBuilder.buildMessage().build();
         SpoilerElement.addSpoiler(message);
 
-        SpoilerElement empty = message.getExtension(SpoilerElement.ELEMENT, SpoilerManager.NAMESPACE_0);
+        SpoilerElement empty = (SpoilerElement) message.getExtensionElement(SpoilerElement.ELEMENT, SpoilerManager.NAMESPACE_0);
 
         assertNull(empty.getHint());
         assertNull(empty.getLanguage());
@@ -59,10 +60,10 @@ public class SpoilerTest extends SmackTestSuite {
     public void hintSpoilerTest() throws Exception {
         final String xml = "<spoiler xmlns='urn:xmpp:spoiler:0'>Love story end</spoiler>";
 
-        Message message = new Message();
+        Message message = StanzaBuilder.buildMessage().build();
         SpoilerElement.addSpoiler(message, "Love story end");
 
-        SpoilerElement withHint = message.getExtension(SpoilerElement.ELEMENT, SpoilerManager.NAMESPACE_0);
+        SpoilerElement withHint = (SpoilerElement) message.getExtensionElement(SpoilerElement.ELEMENT, SpoilerManager.NAMESPACE_0);
 
         assertEquals("Love story end", withHint.getHint());
         assertNull(withHint.getLanguage());
@@ -79,10 +80,10 @@ public class SpoilerTest extends SmackTestSuite {
     public void i18nHintSpoilerTest() throws Exception {
         final String xml = "<spoiler xml:lang='de' xmlns='urn:xmpp:spoiler:0'>Der Kuchen ist eine Lüge!</spoiler>";
 
-        Message message = new Message();
+        Message message = StanzaBuilder.buildMessage().build();
         SpoilerElement.addSpoiler(message, "de", "Der Kuchen ist eine Lüge!");
 
-        SpoilerElement i18nHint = message.getExtension(SpoilerElement.ELEMENT, SpoilerManager.NAMESPACE_0);
+        SpoilerElement i18nHint = (SpoilerElement) message.getExtensionElement(SpoilerElement.ELEMENT, SpoilerManager.NAMESPACE_0);
 
         assertEquals("Der Kuchen ist eine Lüge!", i18nHint.getHint());
         assertEquals("de", i18nHint.getLanguage());
@@ -98,7 +99,7 @@ public class SpoilerTest extends SmackTestSuite {
 
     @Test
     public void getSpoilersTest() {
-        Message m = new Message();
+        Message m = StanzaBuilder.buildMessage().build();
         assertTrue(SpoilerElement.getSpoilers(m).isEmpty());
 
         SpoilerElement.addSpoiler(m);

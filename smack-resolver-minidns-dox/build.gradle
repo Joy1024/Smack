@@ -2,7 +2,6 @@ description = """\
 DNS over XMPP (DoX) support using MiniDNS."""
 
 dependencies {
-	compile project(path: ':smack-resolver-minidns')
-	compile project(path: ':smack-experimental')
-	testCompile project(path: ":smack-core", configuration: "testRuntime")
+	api project(path: ':smack-resolver-minidns')
+	api project(path: ':smack-experimental')
 }

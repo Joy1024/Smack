@@ -16,13 +16,15 @@
  */
 package org.jivesoftware.smackx.sid;
 
-import static org.jivesoftware.smack.test.util.XmlUnitUtils.assertXmlSimilar;
+import static org.jivesoftware.smack.test.util.XmlAssertUtil.assertXmlSimilar;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.packet.MessageBuilder;
+import org.jivesoftware.smack.packet.StanzaBuilder;
 import org.jivesoftware.smack.test.util.SmackTestSuite;
 import org.jivesoftware.smack.test.util.TestUtils;
 import org.jivesoftware.smack.util.PacketParserUtils;
@@ -70,12 +72,15 @@ public class StableUniqueStanzaIdTest extends SmackTestSuite {
 
     @Test
     public void fromMessageTest() {
-        Message message = new Message();
+        MessageBuilder messageBuilder = StanzaBuilder.buildMessage();
+
+        Message message = messageBuilder.build();
         assertFalse(OriginIdElement.hasOriginId(message));
         assertFalse(StanzaIdElement.hasStanzaId(message));
 
-        OriginIdElement.addOriginId(message);
+        OriginIdElement.addTo(messageBuilder);
 
+        message = messageBuilder.build();
         assertTrue(OriginIdElement.hasOriginId(message));
 
         StanzaIdElement stanzaId = new StanzaIdElement("alice@wonderland.lit");

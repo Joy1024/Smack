@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2003-2007 Jive Software, 2015-2018 Florian Schmaus
+ * Copyright 2003-2007 Jive Software, 2015-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,13 @@
 
 package org.jivesoftware.smackx.pep;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.logging.Logger;
 
 import org.jivesoftware.smack.AsyncButOrdered;
 import org.jivesoftware.smack.Manager;
@@ -30,21 +33,26 @@ import org.jivesoftware.smack.StanzaListener;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.filter.AndFilter;
+import org.jivesoftware.smack.filter.MessageTypeFilter;
 import org.jivesoftware.smack.filter.StanzaFilter;
-import org.jivesoftware.smack.filter.jidtype.AbstractJidTypeFilter.JidType;
 import org.jivesoftware.smack.filter.jidtype.FromJidTypeFilter;
+import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.packet.NamedElement;
 import org.jivesoftware.smack.packet.Stanza;
+import org.jivesoftware.smack.util.CollectionUtil;
+import org.jivesoftware.smack.util.MultiMap;
 
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.pubsub.EventElement;
 import org.jivesoftware.smackx.pubsub.Item;
+import org.jivesoftware.smackx.pubsub.ItemsExtension;
 import org.jivesoftware.smackx.pubsub.LeafNode;
+import org.jivesoftware.smackx.pubsub.PayloadItem;
 import org.jivesoftware.smackx.pubsub.PubSubException.NotALeafNodeException;
-import org.jivesoftware.smackx.pubsub.PubSubException.NotAPubSubNodeException;
 import org.jivesoftware.smackx.pubsub.PubSubFeature;
 import org.jivesoftware.smackx.pubsub.PubSubManager;
-import org.jivesoftware.smackx.pubsub.filter.EventExtensionFilter;
+import org.jivesoftware.smackx.pubsub.filter.EventItemsExtensionFilter;
 
 import org.jxmpp.jid.BareJid;
 import org.jxmpp.jid.EntityBareJid;
@@ -71,6 +79,8 @@ import org.jxmpp.jid.EntityBareJid;
  */
 public final class PepManager extends Manager {
 
+    private static final Logger LOGGER = Logger.getLogger(PepManager.class.getName());
+
     private static final Map<XMPPConnection, PepManager> INSTANCES = new WeakHashMap<>();
 
     public static synchronized PepManager getInstanceFor(XMPPConnection connection) {
@@ -82,15 +92,24 @@ public final class PepManager extends Manager {
         return pepManager;
     }
 
-    private static final StanzaFilter FROM_BARE_JID_WITH_EVENT_EXTENSION_FILTER = new AndFilter(
-            new FromJidTypeFilter(JidType.BareJid),
-            EventExtensionFilter.INSTANCE);
+    // TODO: Ideally PepManager would re-use PubSubManager for this. But the functionality in PubSubManager does not yet
+    // exist.
+    private static final StanzaFilter PEP_EVENTS_FILTER = new AndFilter(
+            MessageTypeFilter.NORMAL_OR_HEADLINE,
+            FromJidTypeFilter.ENTITY_BARE_JID,
+            EventItemsExtensionFilter.INSTANCE);
 
     private final Set<PepListener> pepListeners = new CopyOnWriteArraySet<>();
 
     private final AsyncButOrdered<EntityBareJid> asyncButOrdered = new AsyncButOrdered<>();
 
+    private final ServiceDiscoveryManager serviceDiscoveryManager;
+
     private final PubSubManager pepPubSubManager;
+
+    private final MultiMap<String, PepEventListenerCoupling<? extends ExtensionElement>> pepEventListeners = new MultiMap<>();
+
+    private final Map<PepEventListener<?>, PepEventListenerCoupling<?>> listenerToCouplingMap = new HashMap<>();
 
     /**
      * Creates a new PEP exchange manager.
@@ -99,28 +118,130 @@ public final class PepManager extends Manager {
      */
     private PepManager(XMPPConnection connection) {
         super(connection);
+
+        serviceDiscoveryManager = ServiceDiscoveryManager.getInstanceFor(connection);
+        pepPubSubManager = PubSubManager.getInstanceFor(connection, null);
+
         StanzaListener packetListener = new StanzaListener() {
             @Override
             public void processStanza(Stanza stanza) {
                 final Message message = (Message) stanza;
                 final EventElement event = EventElement.from(stanza);
-                assert (event != null);
+                assert event != null;
                 final EntityBareJid from = message.getFrom().asEntityBareJidIfPossible();
-                assert (from != null);
+                assert from != null;
+
                 asyncButOrdered.performAsyncButOrdered(from, new Runnable() {
                     @Override
                     public void run() {
+                        ItemsExtension itemsExtension = (ItemsExtension) event.getEvent();
+                        String node = itemsExtension.getNode();
+
                         for (PepListener listener : pepListeners) {
                             listener.eventReceived(from, event, message);
+                        }
+
+                        List<PepEventListenerCoupling<? extends ExtensionElement>> nodeListeners;
+                        synchronized (pepEventListeners) {
+                            nodeListeners = pepEventListeners.getAll(node);
+                            if (nodeListeners.isEmpty()) {
+                                return;
+                            }
+
+                            // Make a copy of the list. Note that it is important to do this within the synchronized
+                            // block.
+                            nodeListeners = CollectionUtil.newListWith(nodeListeners);
+                        }
+
+                        for (PepEventListenerCoupling<? extends ExtensionElement> listener : nodeListeners) {
+                            // TODO: Can there be more than one item?
+                            List<? extends NamedElement> items = itemsExtension.getItems();
+                            for (NamedElement namedElementItem : items) {
+                                Item item = (Item) namedElementItem;
+                                String id = item.getId();
+                                @SuppressWarnings("unchecked")
+                                PayloadItem<ExtensionElement> payloadItem = (PayloadItem<ExtensionElement>) item;
+                                ExtensionElement payload = payloadItem.getPayload();
+
+                                listener.invoke(from, payload, id, message);
+                            }
                         }
                     }
                 });
             }
         };
         // TODO Add filter to check if from supports PubSub as per xep163 2 2.4
-        connection.addSyncStanzaListener(packetListener, FROM_BARE_JID_WITH_EVENT_EXTENSION_FILTER);
+        connection.addSyncStanzaListener(packetListener, PEP_EVENTS_FILTER);
+    }
 
-        pepPubSubManager = PubSubManager.getInstanceFor(connection, null);
+    private static final class PepEventListenerCoupling<E extends ExtensionElement> {
+        private final String node;
+        private final Class<E> extensionElementType;
+        private final PepEventListener<E> pepEventListener;
+
+        private PepEventListenerCoupling(String node, Class<E> extensionElementType,
+                        PepEventListener<E> pepEventListener) {
+            this.node = node;
+            this.extensionElementType = extensionElementType;
+            this.pepEventListener = pepEventListener;
+        }
+
+        private void invoke(EntityBareJid from, ExtensionElement payload, String id, Message carrierMessage) {
+            if (!extensionElementType.isInstance(payload)) {
+                LOGGER.warning("Ignoring " + payload + " from " + carrierMessage + " as it is not of type "
+                                + extensionElementType);
+                return;
+            }
+
+            E extensionElementPayload = extensionElementType.cast(payload);
+            pepEventListener.onPepEvent(from, extensionElementPayload, id, carrierMessage);
+        }
+    }
+
+    public <E extends ExtensionElement> boolean addPepEventListener(String node, Class<E> extensionElementType,
+                    PepEventListener<E> pepEventListener) {
+        PepEventListenerCoupling<E> pepEventListenerCoupling = new PepEventListenerCoupling<>(node,
+                        extensionElementType, pepEventListener);
+
+        synchronized (pepEventListeners) {
+            if (listenerToCouplingMap.containsKey(pepEventListener)) {
+                return false;
+            }
+            listenerToCouplingMap.put(pepEventListener, pepEventListenerCoupling);
+            /*
+             * TODO: Replace the above with the below using putIfAbsent() if Smack's minimum required Android SDK level
+             * is 24 or higher. PepEventListenerCoupling<?> currentPepEventListenerCoupling =
+             * listenerToCouplingMap.putIfAbsent(pepEventListener, pepEventListenerCoupling); if
+             * (currentPepEventListenerCoupling != null) { return false; }
+             */
+
+            boolean listenerForNodeExisted = pepEventListeners.put(node, pepEventListenerCoupling);
+            if (!listenerForNodeExisted) {
+                serviceDiscoveryManager.addFeature(node + PubSubManager.PLUS_NOTIFY);
+            }
+        }
+        return true;
+    }
+
+    public boolean removePepEventListener(PepEventListener<?> pepEventListener) {
+        synchronized (pepEventListeners) {
+            PepEventListenerCoupling<?> pepEventListenerCoupling = listenerToCouplingMap.remove(pepEventListener);
+            if (pepEventListenerCoupling == null) {
+                return false;
+            }
+
+            String node = pepEventListenerCoupling.node;
+
+            boolean mappingExisted = pepEventListeners.removeOne(node, pepEventListenerCoupling);
+            assert mappingExisted;
+
+            if (!pepEventListeners.containsKey(pepEventListenerCoupling.node)) {
+                // This was the last listener for the node. Remove the +notify feature.
+                serviceDiscoveryManager.removeFeature(node + PubSubManager.PLUS_NOTIFY);
+            }
+        }
+
+        return true;
     }
 
     public PubSubManager getPepPubSubManager() {
@@ -128,12 +249,14 @@ public final class PepManager extends Manager {
     }
 
     /**
-     * Adds a listener to PEPs. The listener will be fired anytime PEP events
-     * are received from remote XMPP clients.
+     * Adds a listener to PEPs. The listener will be fired anytime PEP events are received from remote XMPP clients.
      *
      * @param pepListener a roster exchange listener.
      * @return true if pepListener was added.
+     * @deprecated use {@link #addPepEventListener(String, Class, PepEventListener)} instead.
      */
+    // TODO: Remove in Smack 4.5
+    @Deprecated
     public boolean addPepListener(PepListener pepListener) {
         return pepListeners.add(pepListener);
     }
@@ -143,7 +266,10 @@ public final class PepManager extends Manager {
      *
      * @param pepListener a roster exchange listener.
      * @return true, if pepListener was removed.
+     * @deprecated use {@link #removePepEventListener(PepEventListener)} instead.
      */
+    // TODO: Remove in Smack 4.5.
+    @Deprecated
     public boolean removePepListener(PepListener pepListener) {
         return pepListeners.remove(pepListener);
     }
@@ -151,19 +277,19 @@ public final class PepManager extends Manager {
     /**
      * Publish an event.
      *
+     * @param nodeId the ID of the node to publish on.
      * @param item the item to publish.
-     * @param node the node to publish on.
-     * @throws NotConnectedException
-     * @throws InterruptedException
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotAPubSubNodeException
-     * @throws NotALeafNodeException
+     * @return the leaf node the item was published on.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotALeafNodeException if a PubSub leaf node operation was attempted on a non-leaf node.
      */
-    public void publish(Item item, String node) throws NotConnectedException, InterruptedException,
-                    NoResponseException, XMPPErrorException, NotAPubSubNodeException, NotALeafNodeException {
-        LeafNode pubSubNode = pepPubSubManager.getLeafNode(node);
-        pubSubNode.publish(item);
+    public LeafNode publish(String nodeId, Item item) throws NotConnectedException, InterruptedException,
+                    NoResponseException, XMPPErrorException, NotALeafNodeException {
+        // PEP nodes are auto created if not existent. Hence Use PubSubManager.tryToPublishAndPossibleAutoCreate() here.
+        return pepPubSubManager.tryToPublishAndPossibleAutoCreate(nodeId, item);
     }
 
     /**
@@ -177,8 +303,8 @@ public final class PepManager extends Manager {
         // @formatter:on
     };
 
-    public boolean isSupported() throws NoResponseException, XMPPErrorException,
-                    NotConnectedException, InterruptedException {
+    public boolean isSupported()
+                    throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         XMPPConnection connection = connection();
         ServiceDiscoveryManager serviceDiscoveryManager = ServiceDiscoveryManager.getInstanceFor(connection);
         BareJid localBareJid = connection.getUser().asBareJid();

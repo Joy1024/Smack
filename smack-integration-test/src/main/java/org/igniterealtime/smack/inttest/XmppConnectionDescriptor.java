@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2018-2019 Florian Schmaus
+ * Copyright 2018-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package org.igniterealtime.smack.inttest;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -29,8 +30,18 @@ import java.util.List;
 import org.jivesoftware.smack.AbstractXMPPConnection;
 import org.jivesoftware.smack.ConnectionConfiguration;
 import org.jivesoftware.smack.XMPPConnection;
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnection;
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnectionConfiguration;
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnectionModuleDescriptor;
+import org.jivesoftware.smack.util.Consumer;
+import org.jivesoftware.smack.websocket.XmppWebSocketTransportModuleDescriptor;
+import org.jivesoftware.smack.websocket.impl.WebSocketFactory;
 
-public class XmppConnectionDescriptor<C extends AbstractXMPPConnection, CC extends ConnectionConfiguration, CCB extends ConnectionConfiguration.Builder<?, CC>> {
+public final class XmppConnectionDescriptor<
+    C extends AbstractXMPPConnection,
+    CC extends ConnectionConfiguration,
+    CCB extends ConnectionConfiguration.Builder<?, CC>
+> {
 
     private final Class<C> connectionClass;
     private final Class<CC> connectionConfigurationClass;
@@ -38,13 +49,18 @@ public class XmppConnectionDescriptor<C extends AbstractXMPPConnection, CC exten
     private final Constructor<C> connectionConstructor;
     private final Method builderMethod;
 
-    public XmppConnectionDescriptor(Class<C> connectionClass, Class<CC> connectionConfigurationClass)
-            throws ClassNotFoundException, NoSuchMethodException, SecurityException {
-        this.connectionClass = connectionClass;
-        this.connectionConfigurationClass = connectionConfigurationClass;
+    private final Consumer<CCB> extraBuilder;
 
-        this.connectionConstructor = getConstructor(connectionClass, connectionConfigurationClass);
-        this.builderMethod = getBuilderMethod(connectionConfigurationClass);
+    private final String nickname;
+
+    private XmppConnectionDescriptor(Builder<C, CC, CCB> builder) throws NoSuchMethodException, SecurityException {
+        connectionClass = builder.connectionClass;
+        connectionConfigurationClass = builder.connectionConfigurationClass;
+        extraBuilder = builder.extraBuilder;
+        nickname = builder.nickname;
+
+        connectionConstructor = getConstructor(connectionClass, connectionConfigurationClass);
+        builderMethod = getBuilderMethod(connectionConfigurationClass);
     }
 
     public C construct(Configuration sinttestConfiguration)
@@ -65,6 +81,9 @@ public class XmppConnectionDescriptor<C extends AbstractXMPPConnection, CC exten
             Collection<ConnectionConfigurationBuilderApplier> customConnectionConfigurationAppliers)
             throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
         CCB connectionConfigurationBuilder = getNewBuilder();
+        if (extraBuilder != null) {
+            extraBuilder.accept(connectionConfigurationBuilder);
+        }
         for (ConnectionConfigurationBuilderApplier customConnectionConfigurationApplier : customConnectionConfigurationAppliers) {
             customConnectionConfigurationApplier.applyConfigurationTo(connectionConfigurationBuilder);
         }
@@ -88,6 +107,10 @@ public class XmppConnectionDescriptor<C extends AbstractXMPPConnection, CC exten
         return connectionClass;
     }
 
+    public String getNickname() {
+        return nickname;
+    }
+
     private static <C extends XMPPConnection> Constructor<C> getConstructor(Class<C> connectionClass,
             Class<? extends ConnectionConfiguration> connectionConfigurationClass)
             throws NoSuchMethodException, SecurityException {
@@ -105,5 +128,74 @@ public class XmppConnectionDescriptor<C extends AbstractXMPPConnection, CC exten
             throw new IllegalArgumentException();
         }
         return builderMethod;
+    }
+
+    public static <C extends AbstractXMPPConnection, CC extends ConnectionConfiguration, CCB extends ConnectionConfiguration.Builder<?, CC>>
+            Builder<C, CC, CCB> buildWith(Class<C> connectionClass, Class<CC> connectionConfigurationClass) {
+        return buildWith(connectionClass, connectionConfigurationClass, null);
+    }
+
+    public static <C extends AbstractXMPPConnection, CC extends ConnectionConfiguration, CCB extends ConnectionConfiguration.Builder<?, CC>>
+            Builder<C, CC, CCB> buildWith(Class<C> connectionClass, Class<CC> connectionConfigurationClass, Class<CCB> connectionConfigurationBuilderClass) {
+        return new Builder<>(connectionClass, connectionConfigurationClass, connectionConfigurationBuilderClass);
+    }
+
+    public static XmppConnectionDescriptor<ModularXmppClientToServerConnection, ModularXmppClientToServerConnectionConfiguration, ModularXmppClientToServerConnectionConfiguration.Builder> buildWebsocketDescriptor(
+                    String nickname, Class<? extends WebSocketFactory> factoryClass)
+                    throws InstantiationException, IllegalAccessException, IllegalArgumentException,
+                    InvocationTargetException, NoSuchMethodException, SecurityException {
+        WebSocketFactory factory;
+        try {
+            Field instanceField = factoryClass.getField("INSTANCE");
+            factory = (WebSocketFactory) instanceField.get(null);
+        } catch (NoSuchFieldException | IllegalArgumentException | IllegalAccessException e) {
+            factory = factoryClass.getConstructor().newInstance();
+        }
+        WebSocketFactory finalFactory = factory;
+
+        return XmppConnectionDescriptor.buildWith(ModularXmppClientToServerConnection.class, ModularXmppClientToServerConnectionConfiguration.class, ModularXmppClientToServerConnectionConfiguration.Builder.class)
+        .withNickname(nickname)
+        .applyExtraConfguration(cb -> {
+            cb.removeAllModules();
+            ModularXmppClientToServerConnectionModuleDescriptor webSocketModuleDescriptor =
+                            XmppWebSocketTransportModuleDescriptor.getBuilder(cb)
+                            .setWebSocketFactory(finalFactory)
+                            .build();
+            cb.addModule(webSocketModuleDescriptor);
+        })
+        .build();
+    }
+
+    public static final class Builder<C extends AbstractXMPPConnection, CC extends ConnectionConfiguration, CCB extends ConnectionConfiguration.Builder<?, CC>> {
+        private final Class<C> connectionClass;
+        private final Class<CC> connectionConfigurationClass;
+
+        private Consumer<CCB> extraBuilder;
+
+        private String nickname;
+
+        // The connectionConfigurationBuilderClass merely exists for type-checking purposes.
+        @SuppressWarnings("UnusedVariable")
+        private Builder(Class<C> connectionClass, Class<CC> connectionConfigurationClass,
+                        Class<CCB> connectionConfigurationBuilderClass) {
+            this.connectionClass = connectionClass;
+            this.connectionConfigurationClass = connectionConfigurationClass;
+
+            nickname = connectionClass.getSimpleName();
+        }
+
+        public Builder<C, CC, CCB> applyExtraConfguration(Consumer<CCB> extraBuilder) {
+            this.extraBuilder = extraBuilder;
+            return this;
+        }
+
+        public Builder<C, CC, CCB> withNickname(String nickname) {
+            this.nickname = nickname;
+            return this;
+        }
+
+        public XmppConnectionDescriptor<C, CC, CCB> build() throws NoSuchMethodException, SecurityException {
+            return new XmppConnectionDescriptor<>(this);
+        }
     }
 }

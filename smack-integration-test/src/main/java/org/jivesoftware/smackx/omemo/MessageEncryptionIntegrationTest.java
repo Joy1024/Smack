@@ -16,16 +16,19 @@
  */
 package org.jivesoftware.smackx.omemo;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import org.jivesoftware.smack.SmackException;
+import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
+import org.jivesoftware.smack.packet.MessageBuilder;
+
 import org.jivesoftware.smackx.omemo.element.OmemoBundleElement;
 
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
 import org.igniterealtime.smack.inttest.TestNotPossibleException;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 
 /**
  * Simple OMEMO message encryption integration test.
@@ -34,7 +37,7 @@ import org.igniterealtime.smack.inttest.TestNotPossibleException;
  */
 public class MessageEncryptionIntegrationTest extends AbstractTwoUsersOmemoIntegrationTest {
 
-    public MessageEncryptionIntegrationTest(SmackIntegrationTestEnvironment<?> environment)
+    public MessageEncryptionIntegrationTest(SmackIntegrationTestEnvironment environment)
             throws XMPPException.XMPPErrorException, SmackException.NotConnectedException, InterruptedException,
             SmackException.NoResponseException, TestNotPossibleException {
         super(environment);
@@ -53,8 +56,9 @@ public class MessageEncryptionIntegrationTest extends AbstractTwoUsersOmemoInteg
      * Bob responds to Alice (normal message)
      * Alice still has A1
      * Bob still has B2
-     * @throws Exception
+     * @throws Exception if an exception occurs.
      */
+    @SuppressWarnings("SynchronizeOnNonFinalField")
     @SmackIntegrationTest
     public void messageTest() throws Exception {
         OmemoBundleElement a1 = alice.getOmemoService().getOmemoStoreBackend().packOmemoBundle(alice.getOwnDevice());
@@ -67,19 +71,22 @@ public class MessageEncryptionIntegrationTest extends AbstractTwoUsersOmemoInteg
                 new AbstractOmemoMessageListener.PreKeyMessageListener(body1);
         bob.addOmemoMessageListener(listener1);
         OmemoMessage.Sent e1 = alice.encrypt(bob.getOwnJid(), body1);
-        alice.getConnection().sendStanza(e1.asMessage(bob.getOwnJid()));
+
+        XMPPConnection alicesConnection = alice.getConnection();
+        MessageBuilder messageBuilder = alicesConnection.getStanzaFactory().buildMessageStanza();
+        alicesConnection.sendStanza(e1.buildMessage(messageBuilder, bob.getOwnJid()));
         listener1.getSyncPoint().waitForResult(10 * 1000);
         bob.removeOmemoMessageListener(listener1);
 
         OmemoBundleElement a1_ = alice.getOmemoService().getOmemoStoreBackend().packOmemoBundle(alice.getOwnDevice());
         OmemoBundleElement b2;
 
-        synchronized (bob.LOCK) { // Circumvent race condition where bundle gets replenished after getting stored in b2
+        synchronized (bob) { // Circumvent race condition where bundle gets replenished after getting stored in b2
             b2 = bob.getOmemoService().getOmemoStoreBackend().packOmemoBundle(bob.getOwnDevice());
         }
 
-        assertEquals("Alice sent bob a preKeyMessage, so her bundle MUST still be the same.", a1, a1_);
-        assertNotEquals("Bob just received a preKeyMessage from alice, so his bundle must have changed.", b1, b2);
+        assertEquals(a1, a1_, "Alice sent bob a preKeyMessage, so her bundle MUST still be the same.");
+        assertNotEquals(b1, b2, "Bob just received a preKeyMessage from alice, so his bundle must have changed.");
 
         // Message B -> A
         final String body3 = "The german words for 'leek' and 'wimp' are the same.";
@@ -87,16 +94,18 @@ public class MessageEncryptionIntegrationTest extends AbstractTwoUsersOmemoInteg
                 new AbstractOmemoMessageListener.MessageListener(body3);
         alice.addOmemoMessageListener(listener3);
         OmemoMessage.Sent e3 = bob.encrypt(alice.getOwnJid(), body3);
-        bob.getConnection().sendStanza(e3.asMessage(alice.getOwnJid()));
+        XMPPConnection bobsConnection = bob.getConnection();
+        messageBuilder = bobsConnection.getStanzaFactory().buildMessageStanza();
+        bobsConnection.sendStanza(e3.buildMessage(messageBuilder, alice.getOwnJid()));
         listener3.getSyncPoint().waitForResult(10 * 1000);
         alice.removeOmemoMessageListener(listener3);
 
         OmemoBundleElement a1__ = alice.getOmemoService().getOmemoStoreBackend().packOmemoBundle(alice.getOwnDevice());
         OmemoBundleElement b2_ = bob.getOmemoService().getOmemoStoreBackend().packOmemoBundle(bob.getOwnDevice());
 
-        assertEquals("Since alice initiated the session with bob, at no time he sent a preKeyMessage, " +
-                "so her bundle MUST still be the same.", a1_, a1__);
-        assertEquals("Bob changed his bundle earlier, but at this point his bundle must be equal to " +
-                "after the first change.", b2, b2_);
+        assertEquals(a1_, a1__, "Since alice initiated the session with bob, at no time he sent a preKeyMessage, " +
+                "so her bundle MUST still be the same.");
+        assertEquals(b2, b2_, "Bob changed his bundle earlier, but at this point his bundle must be equal to " +
+                "after the first change.");
     }
 }

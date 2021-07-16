@@ -16,10 +16,11 @@
  */
 package org.jivesoftware.smackx.jingleold.nat;
 
+import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
-
+import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smackx.jingleold.JingleSession;
 import org.jivesoftware.smackx.jingleold.listeners.CreatedJingleSessionListener;
 import org.jivesoftware.smackx.jingleold.listeners.JingleSessionListener;
@@ -46,7 +47,7 @@ public class BridgedTransportManager extends JingleTransportManager implements J
      * Return the correspondent resolver
      *
      * @param session correspondent Jingle Session
-     * @return resolver
+     * @return resolver TODO javadoc me please
      */
     @Override
     protected TransportResolver createResolver(JingleSession session) {
@@ -57,7 +58,7 @@ public class BridgedTransportManager extends JingleTransportManager implements J
     // Implement a Session Listener to relay candidates after establishment
 
     @Override
-    public void sessionEstablished(PayloadType pt, TransportCandidate rc, TransportCandidate lc, JingleSession jingleSession) throws NotConnectedException, InterruptedException {
+    public void sessionEstablished(PayloadType pt, TransportCandidate rc, TransportCandidate lc, JingleSession jingleSession) throws NotConnectedException, InterruptedException, NoResponseException, XMPPErrorException {
         RTPBridge rtpBridge = RTPBridge.relaySession(lc.getConnection(), lc.getSessionId(), lc.getPassword(), rc, lc);
     }
 

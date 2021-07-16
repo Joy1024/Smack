@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2019 Florian Schmaus
+ * Copyright 2019-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ package org.jivesoftware.smack.packet;
 
 import org.jivesoftware.smack.util.ParserUtils;
 import org.jivesoftware.smack.util.StringUtils;
-
 import org.jivesoftware.smack.xml.XmlPullParser;
 
 public class XmlEnvironment {
@@ -72,7 +71,7 @@ public class XmlEnvironment {
     }
 
     public String getEffectiveNamespaceOrUse(String namespace) {
-        String effectiveNamespace = getEffectiveLanguage();
+        String effectiveNamespace = getEffectiveNamespace();
         if (StringUtils.isNullOrEmpty(effectiveNamespace)) {
             return namespace;
         }
@@ -106,12 +105,35 @@ public class XmlEnvironment {
         return effectiveLanguage;
     }
 
+    public boolean effectiveLanguageEquals(String language) {
+        String effectiveLanguage = getEffectiveLanguage();
+        if (effectiveLanguage == null) {
+            return false;
+        }
+        return effectiveLanguage.equals(language);
+    }
+
+    private transient String toStringCache;
+
+    @Override
+    public String toString() {
+        if (toStringCache == null) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(XmlEnvironment.class.getSimpleName()).append(' ');
+            sb.append("xmlns=").append(getEffectiveNamespace()).append(' ');
+            sb.append("xmllang=").append(getEffectiveLanguage()).append(' ');
+
+            toStringCache = sb.toString();
+        }
+        return toStringCache;
+    }
+
     public static XmlEnvironment from(XmlPullParser parser) {
         return from(parser, null);
     }
 
     public static XmlEnvironment from(XmlPullParser parser, XmlEnvironment outerXmlEnvironment) {
-        String namespace = parser.getNamespace();
+        String namespace = parser.getDefaultNamespace();
         String xmlLang = ParserUtils.getXmlLang(parser);
         return new XmlEnvironment(namespace, xmlLang, outerXmlEnvironment);
     }
@@ -137,6 +159,12 @@ public class XmlEnvironment {
 
         public Builder withNext(XmlEnvironment next) {
             this.next = next;
+            return this;
+        }
+
+        public Builder with(AbstractStreamOpen streamOpen) {
+            withNamespace(streamOpen.getNamespace());
+            withLanguage(streamOpen.getLanguage());
             return this;
         }
 

@@ -19,10 +19,15 @@ package org.jivesoftware.smackx.xdatavalidation.provider;
 import java.io.IOException;
 import java.util.logging.Logger;
 
+import javax.xml.namespace.QName;
+
+import org.jivesoftware.smack.datatypes.UInt32;
+import org.jivesoftware.smack.packet.XmlEnvironment;
 import org.jivesoftware.smack.util.ParserUtils;
 import org.jivesoftware.smack.xml.XmlPullParser;
 import org.jivesoftware.smack.xml.XmlPullParserException;
 
+import org.jivesoftware.smackx.xdata.provider.FormFieldChildElementProvider;
 import org.jivesoftware.smackx.xdatavalidation.packet.ValidateElement;
 import org.jivesoftware.smackx.xdatavalidation.packet.ValidateElement.BasicValidateElement;
 import org.jivesoftware.smackx.xdatavalidation.packet.ValidateElement.ListRange;
@@ -36,11 +41,12 @@ import org.jivesoftware.smackx.xdatavalidation.packet.ValidateElement.RegexValid
  * @author Anno van Vliet
  *
  */
-public class DataValidationProvider {
+public class DataValidationProvider extends FormFieldChildElementProvider<ValidateElement> {
     private static final Logger LOGGER = Logger.getLogger(DataValidationProvider.class.getName());
 
-    public static ValidateElement parse(XmlPullParser parser) throws XmlPullParserException, IOException {
-        final int initialDepth = parser.getDepth();
+    @Override
+    public ValidateElement parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment)
+                    throws XmlPullParserException, IOException {
         final String dataType = parser.getAttributeValue("", "datatype");
         ValidateElement dataValidation = null;
         ListRange listRange = null;
@@ -67,8 +73,8 @@ public class DataValidationProvider {
                     dataValidation = new RegexValidateElement(dataType, parser.nextText());
                     break;
                 case ListRange.ELEMENT:
-                    Long min = ParserUtils.getLongAttribute(parser, "min");
-                    Long max = ParserUtils.getLongAttribute(parser, "max");
+                    UInt32 min = ParserUtils.getUInt32Attribute(parser, "min");
+                    UInt32 max = ParserUtils.getUInt32Attribute(parser, "max");
                     if (min != null || max != null) {
                         listRange = new ListRange(min, max);
                     } else {
@@ -96,6 +102,11 @@ public class DataValidationProvider {
             }
         }
         return dataValidation;
+    }
+
+    @Override
+    public QName getQName() {
+        return ValidateElement.QNAME;
     }
 
 }

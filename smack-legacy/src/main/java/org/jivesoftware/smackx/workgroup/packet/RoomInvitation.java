@@ -19,6 +19,8 @@ package org.jivesoftware.smackx.workgroup.packet;
 
 import java.io.IOException;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.packet.IQ.IQChildElementXmlStringBuilder;
@@ -49,6 +51,8 @@ public class RoomInvitation implements ExtensionElement {
      * Namespace of the stanza extension.
      */
     public static final String NAMESPACE = "http://jabber.org/protocol/workgroup";
+
+    public static final QName QNAME = new QName(NAMESPACE, ELEMENT_NAME);
 
     /**
      * Type of entity being invited to a groupchat support session.
@@ -175,11 +179,10 @@ public class RoomInvitation implements ExtensionElement {
             final RoomInvitation invitation = new RoomInvitation();
             invitation.type = Type.valueOf(parser.getAttributeValue("", "type"));
 
-            boolean done = false;
-            while (!done) {
+            outerloop: while (true) {
                 parser.next();
-                String elementName = parser.getName();
                 if (parser.getEventType() == XmlPullParser.Event.START_ELEMENT) {
+                    String elementName = parser.getName();
                     if ("session".equals(elementName)) {
                         invitation.sessionID = parser.getAttributeValue("", "id");
                     }
@@ -199,8 +202,8 @@ public class RoomInvitation implements ExtensionElement {
                         invitation.room = JidCreate.entityBareFrom(roomString);
                     }
                 }
-                else if (parser.getEventType() == XmlPullParser.Event.END_ELEMENT && ELEMENT_NAME.equals(elementName)) {
-                    done = true;
+                else if (parser.getEventType() == XmlPullParser.Event.END_ELEMENT && parser.getDepth() == initialDepth) {
+                    break outerloop;
                 }
             }
             return invitation;

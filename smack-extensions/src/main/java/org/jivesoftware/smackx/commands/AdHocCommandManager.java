@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -52,7 +51,8 @@ import org.jivesoftware.smackx.disco.AbstractNodeInformationProvider;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.disco.packet.DiscoverInfo;
 import org.jivesoftware.smackx.disco.packet.DiscoverItems;
-import org.jivesoftware.smackx.xdata.Form;
+import org.jivesoftware.smackx.xdata.form.FillableForm;
+import org.jivesoftware.smackx.xdata.packet.DataForm;
 
 import org.jxmpp.jid.Jid;
 
@@ -184,9 +184,9 @@ public final class AdHocCommandManager extends Manager {
 
     /**
      * Registers a new command with this command manager, which is related to a
-     * connection. The <tt>node</tt> is an unique identifier of that command for
-     * the connection related to this command manager. The <tt>name</tt> is the
-     * human readable name of the command. The <tt>class</tt> is the class of
+     * connection. The <code>node</code> is an unique identifier of that command for
+     * the connection related to this command manager. The <code>name</code> is the
+     * human readable name of the command. The <code>class</code> is the class of
      * the command, which must extend {@link LocalCommand} and have a default
      * constructor.
      *
@@ -205,9 +205,9 @@ public final class AdHocCommandManager extends Manager {
 
     /**
      * Registers a new command with this command manager, which is related to a
-     * connection. The <tt>node</tt> is an unique identifier of that
-     * command for the connection related to this command manager. The <tt>name</tt>
-     * is the human readable name of the command. The <tt>factory</tt> generates
+     * connection. The <code>node</code> is an unique identifier of that
+     * command for the connection related to this command manager. The <code>name</code>
+     * is the human readable name of the command. The <code>factory</code> generates
      * new instances of the command.
      *
      * @param node the unique identifier of the command.
@@ -250,7 +250,7 @@ public final class AdHocCommandManager extends Manager {
      * @return the discovered items.
      * @throws XMPPException if the operation failed for some reason.
      * @throws SmackException if there was no response from the server.
-     * @throws InterruptedException
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public DiscoverItems discoverCommands(Jid jid) throws XMPPException, SmackException, InterruptedException {
         return serviceDiscoveryManager.discoverItems(jid, NAMESPACE);
@@ -291,11 +291,11 @@ public final class AdHocCommandManager extends Manager {
      *  <li>The action to execute is one of the available actions</li>
      * </ul>
      *
-     * @param requestData
+     * @param requestData TODO javadoc me please
      *            the stanza to process.
-     * @throws NotConnectedException
-     * @throws NoResponseException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     private IQ processAdHocCommand(AdHocCommandData requestData) throws NoResponseException, NotConnectedException, InterruptedException {
         // Creates the response with the corresponding data
@@ -329,7 +329,10 @@ public final class AdHocCommandManager extends Manager {
                 }
                 catch (InstantiationException | IllegalAccessException | IllegalArgumentException
                                 | InvocationTargetException | NoSuchMethodException | SecurityException e) {
-                    StanzaError.Builder xmppError = StanzaError.getBuilder().setCondition(StanzaError.Condition.internal_server_error).setDescriptiveEnText(e.getMessage());
+                    StanzaError xmppError = StanzaError.getBuilder()
+                                    .setCondition(StanzaError.Condition.internal_server_error)
+                                    .setDescriptiveEnText(e.getMessage())
+                                    .build();
                     return respondError(response, xmppError);
                 }
 
@@ -393,7 +396,7 @@ public final class AdHocCommandManager extends Manager {
                     response.setStatus(Status.canceled);
                     executingCommands.remove(sessionId);
                 }
-                return respondError(response, StanzaError.getBuilder(error));
+                return respondError(response, error);
             }
         }
         else {
@@ -459,7 +462,8 @@ public final class AdHocCommandManager extends Manager {
 
                     if (Action.next.equals(action)) {
                         command.incrementStage();
-                        command.next(new Form(requestData.getForm()));
+                        DataForm dataForm = requestData.getForm();
+                        command.next(new FillableForm(dataForm));
                         if (command.isLastStage()) {
                             // If it is the last stage then the command is
                             // completed
@@ -472,7 +476,8 @@ public final class AdHocCommandManager extends Manager {
                     }
                     else if (Action.complete.equals(action)) {
                         command.incrementStage();
-                        command.complete(new Form(requestData.getForm()));
+                        DataForm dataForm = requestData.getForm();
+                        command.complete(new FillableForm(dataForm));
                         response.setStatus(Status.completed);
                         // Remove the completed session
                         executingCommands.remove(sessionId);
@@ -503,7 +508,7 @@ public final class AdHocCommandManager extends Manager {
                         response.setStatus(Status.canceled);
                         executingCommands.remove(sessionId);
                     }
-                    return respondError(response, StanzaError.getBuilder(error));
+                    return respondError(response, error);
                 }
             }
         }
@@ -511,11 +516,11 @@ public final class AdHocCommandManager extends Manager {
 
     private boolean sessionSweeperScheduled;
 
-    private final Runnable sessionSweeper = () -> {
+    private void sessionSweeper() {
         final long currentTime = System.currentTimeMillis();
         synchronized (this) {
-            for (Iterator<Entry<String, LocalCommand>> it = executingCommands.entrySet().iterator(); it.hasNext();) {
-                Entry<String, LocalCommand> entry = it.next();
+            for (Iterator<Map.Entry<String, LocalCommand>> it = executingCommands.entrySet().iterator(); it.hasNext();) {
+                Map.Entry<String, LocalCommand> entry = it.next();
                 LocalCommand command = entry.getValue();
 
                 long creationStamp = command.getCreationDate();
@@ -547,7 +552,7 @@ public final class AdHocCommandManager extends Manager {
         }
 
         sessionSweeperScheduled = true;
-        schedule(sessionSweeper, 10, TimeUnit.SECONDS);
+        schedule(this::sessionSweeper, 10, TimeUnit.SECONDS);
     }
 
     /**
@@ -555,11 +560,10 @@ public final class AdHocCommandManager extends Manager {
      *
      * @param response the response to send.
      * @param condition the condition of the error.
-     * @throws NotConnectedException
      */
     private static IQ respondError(AdHocCommandData response,
             StanzaError.Condition condition) {
-        return respondError(response, StanzaError.getBuilder(condition));
+        return respondError(response, StanzaError.getBuilder(condition).build());
     }
 
     /**
@@ -568,11 +572,12 @@ public final class AdHocCommandManager extends Manager {
      * @param response the response to send.
      * @param condition the condition of the error.
      * @param specificCondition the adhoc command error condition.
-     * @throws NotConnectedException
      */
     private static IQ respondError(AdHocCommandData response, StanzaError.Condition condition,
             AdHocCommand.SpecificErrorCondition specificCondition) {
-        StanzaError.Builder error = StanzaError.getBuilder(condition).addExtension(new AdHocCommandData.SpecificError(specificCondition));
+        StanzaError error = StanzaError.getBuilder(condition)
+                        .addExtension(new AdHocCommandData.SpecificError(specificCondition))
+                        .build();
         return respondError(response, error);
     }
 
@@ -581,9 +586,8 @@ public final class AdHocCommandManager extends Manager {
      *
      * @param response the response to send.
      * @param error the error to send.
-     * @throws NotConnectedException
      */
-    private static IQ respondError(AdHocCommandData response, StanzaError.Builder error) {
+    private static IQ respondError(AdHocCommandData response, StanzaError error) {
         response.setType(IQ.Type.error);
         response.setError(error);
         return response;
@@ -596,12 +600,12 @@ public final class AdHocCommandManager extends Manager {
      * @param sessionID the session id of this execution.
      * @return the command instance to execute.
      * @throws XMPPErrorException if there is problem creating the new instance.
-     * @throws SecurityException
-     * @throws NoSuchMethodException
-     * @throws InvocationTargetException
-     * @throws IllegalArgumentException
-     * @throws IllegalAccessException
-     * @throws InstantiationException
+     * @throws SecurityException if there was a security violation.
+     * @throws NoSuchMethodException if no such method is declared
+     * @throws InvocationTargetException if a reflection-based method or constructor invocation threw.
+     * @throws IllegalArgumentException if an illegal argument was given.
+     * @throws IllegalAccessException in case of an illegal access.
+     * @throws InstantiationException in case of an instantiation error.
      */
     private LocalCommand newInstanceOfCmd(String commandNode, String sessionID)
                     throws XMPPErrorException, InstantiationException, IllegalAccessException, IllegalArgumentException,

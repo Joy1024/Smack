@@ -26,11 +26,6 @@ import java.io.Writer;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.security.KeyManagementException;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -44,7 +39,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
@@ -55,22 +49,22 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 
-import org.jivesoftware.smack.AbstractConnectionListener;
 import org.jivesoftware.smack.AbstractXMPPConnection;
 import org.jivesoftware.smack.ConnectionConfiguration;
 import org.jivesoftware.smack.ConnectionConfiguration.SecurityMode;
+import org.jivesoftware.smack.ConnectionListener;
 import org.jivesoftware.smack.SmackConfiguration;
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.SmackException.AlreadyConnectedException;
 import org.jivesoftware.smack.SmackException.AlreadyLoggedInException;
 import org.jivesoftware.smack.SmackException.ConnectionException;
-import org.jivesoftware.smack.SmackException.NoResponseException;
+import org.jivesoftware.smack.SmackException.EndpointConnectionException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.SmackException.NotLoggedInException;
+import org.jivesoftware.smack.SmackException.SecurityNotPossibleException;
 import org.jivesoftware.smack.SmackException.SecurityRequiredByServerException;
 import org.jivesoftware.smack.SmackFuture;
 import org.jivesoftware.smack.StanzaListener;
-import org.jivesoftware.smack.SynchronizationPoint;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.XMPPException.FailedNonzaException;
@@ -78,7 +72,9 @@ import org.jivesoftware.smack.XMPPException.StreamErrorException;
 import org.jivesoftware.smack.compress.packet.Compress;
 import org.jivesoftware.smack.compress.packet.Compressed;
 import org.jivesoftware.smack.compression.XMPPInputOutputStream;
+import org.jivesoftware.smack.datatypes.UInt16;
 import org.jivesoftware.smack.filter.StanzaFilter;
+import org.jivesoftware.smack.internal.SmackTlsContext;
 import org.jivesoftware.smack.packet.Element;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.packet.Message;
@@ -89,10 +85,7 @@ import org.jivesoftware.smack.packet.StartTls;
 import org.jivesoftware.smack.packet.StreamError;
 import org.jivesoftware.smack.packet.StreamOpen;
 import org.jivesoftware.smack.proxy.ProxyInfo;
-import org.jivesoftware.smack.sasl.packet.SaslStreamElements;
-import org.jivesoftware.smack.sasl.packet.SaslStreamElements.Challenge;
-import org.jivesoftware.smack.sasl.packet.SaslStreamElements.SASLFailure;
-import org.jivesoftware.smack.sasl.packet.SaslStreamElements.Success;
+import org.jivesoftware.smack.sasl.packet.SaslNonza;
 import org.jivesoftware.smack.sm.SMUtils;
 import org.jivesoftware.smack.sm.StreamManagementException;
 import org.jivesoftware.smack.sm.StreamManagementException.StreamIdDoesNotMatchException;
@@ -109,6 +102,8 @@ import org.jivesoftware.smack.sm.packet.StreamManagement.Resumed;
 import org.jivesoftware.smack.sm.packet.StreamManagement.StreamManagementFeature;
 import org.jivesoftware.smack.sm.predicates.Predicate;
 import org.jivesoftware.smack.sm.provider.ParseStreamManagement;
+import org.jivesoftware.smack.tcp.rce.RemoteXmppTcpConnectionEndpoints;
+import org.jivesoftware.smack.tcp.rce.Rfc6120TcpRemoteConnectionEndpoint;
 import org.jivesoftware.smack.util.ArrayBlockingQueueWithShutdown;
 import org.jivesoftware.smack.util.Async;
 import org.jivesoftware.smack.util.CloseableUtil;
@@ -116,7 +111,7 @@ import org.jivesoftware.smack.util.PacketParserUtils;
 import org.jivesoftware.smack.util.StringUtils;
 import org.jivesoftware.smack.util.TLSUtils;
 import org.jivesoftware.smack.util.XmlStringBuilder;
-import org.jivesoftware.smack.util.dns.HostAddress;
+import org.jivesoftware.smack.util.rce.RemoteConnectionException;
 import org.jivesoftware.smack.xml.SmackXmlParser;
 import org.jivesoftware.smack.xml.XmlPullParser;
 import org.jivesoftware.smack.xml.XmlPullParserException;
@@ -150,8 +145,6 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
 
     private SSLSocket secureSocket;
 
-    private final Semaphore readerWriterSemaphore = new Semaphore(2);
-
     /**
      * Protected access level because of unit test purposes
      */
@@ -165,14 +158,12 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
     /**
      *
      */
-    private final SynchronizationPoint<XMPPException> maybeCompressFeaturesReceived = new SynchronizationPoint<XMPPException>(
-                    this, "stream compression feature");
+    private boolean streamFeaturesAfterAuthenticationReceived;
 
     /**
      *
      */
-    private final SynchronizationPoint<SmackException> compressSyncPoint = new SynchronizationPoint<>(
-                    this, "stream compression");
+    private boolean compressSyncPoint;
 
     /**
      * The default bundle and defer callback, used for new connections.
@@ -200,11 +191,22 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      */
     private String smSessionId;
 
-    private final SynchronizationPoint<FailedNonzaException> smResumedSyncPoint = new SynchronizationPoint<>(
-                    this, "stream resumed element");
+    /**
+     * Represents the state of stream management resumption.
+     * <p>
+     * Unlike other sync points, this sync point is marked volatile because it is also read by the reader thread.
+     * </p>
+     */
+    private volatile SyncPointState smResumedSyncPoint;
+    private Failed smResumptionFailed;
 
-    private final SynchronizationPoint<SmackException> smEnabledSyncPoint = new SynchronizationPoint<>(
-                    this, "stream enabled element");
+    /**
+     * Represents the state of stream magement.
+     * <p>
+     * This boolean is marked volatile as it is read by various threads, including the reader thread via {@link #isSmEnabled()}.
+     * </p>
+     */
+    private volatile boolean smEnabledSyncPoint;
 
     /**
      * The client's preferred maximum resumption time in seconds.
@@ -294,7 +296,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
     public XMPPTCPConnection(XMPPTCPConnectionConfiguration config) {
         super(config);
         this.config = config;
-        addConnectionListener(new AbstractConnectionListener() {
+        addConnectionListener(new ConnectionListener() {
             @Override
             public void connectionClosedOnError(Exception e) {
                 if (e instanceof XMPPException.StreamErrorException || e instanceof StreamManagementException) {
@@ -302,6 +304,10 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                 }
             }
         });
+
+        // Re-init the reader and writer in case of SASL <success/>. This is done to reset the parser since a new stream
+        // is initiated.
+        buildNonzaCallback().listenFor(SaslNonza.Success.class, s -> resetParser()).install();
     }
 
     /**
@@ -314,7 +320,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      *
      * @param jid the bare JID used by the client.
      * @param password the password or authentication token.
-     * @throws XmppStringprepException
+     * @throws XmppStringprepException if the provided string is invalid.
      */
     public XMPPTCPConnection(CharSequence jid, String password) throws XmppStringprepException {
         this(XMPPTCPConnectionConfiguration.builder().setXmppAddressAndPassword(jid, password).build());
@@ -327,10 +333,10 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      * you can get fine-grained control over connection settings using the
      * {@link #XMPPTCPConnection(XMPPTCPConnectionConfiguration)} constructor.
      * </p>
-     * @param username
-     * @param password
-     * @param serviceName
-     * @throws XmppStringprepException
+     * @param username TODO javadoc me please
+     * @param password TODO javadoc me please
+     * @param serviceName TODO javadoc me please
+     * @throws XmppStringprepException if the provided string is invalid.
      */
     public XMPPTCPConnection(CharSequence username, String password, String serviceName) throws XmppStringprepException {
         this(XMPPTCPConnectionConfiguration.builder().setUsernameAndPassword(username, password).setXmppDomain(
@@ -371,20 +377,26 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                     SmackException, IOException, InterruptedException {
         // Authenticate using SASL
         SSLSession sslSession = secureSocket != null ? secureSocket.getSession() : null;
-        saslAuthentication.authenticate(username, password, config.getAuthzid(), sslSession);
+
+        streamFeaturesAfterAuthenticationReceived = false;
+        authenticate(username, password, config.getAuthzid(), sslSession);
 
         // Wait for stream features after the authentication.
         // TODO: The name of this synchronization point "maybeCompressFeaturesReceived" is not perfect. It should be
         // renamed to "streamFeaturesAfterAuthenticationReceived".
-        maybeCompressFeaturesReceived.checkIfSuccessOrWait();
+        waitForConditionOrThrowConnectionException(() -> streamFeaturesAfterAuthenticationReceived, "compress features from server");
 
         // If compression is enabled then request the server to use stream compression. XEP-170
         // recommends to perform stream compression before resource binding.
         maybeEnableCompression();
 
+        smResumedSyncPoint = SyncPointState.initial;
+        smResumptionFailed = null;
         if (isSmResumptionPossible()) {
-            smResumedSyncPoint.sendAndWaitForResponse(new Resume(clientHandledStanzasCount, smSessionId));
-            if (smResumedSyncPoint.wasSuccessful()) {
+            smResumedSyncPoint = SyncPointState.request_sent;
+            sendNonza(new Resume(clientHandledStanzasCount, smSessionId));
+            waitForConditionOrConnectionException(() -> smResumedSyncPoint == SyncPointState.successful || smResumptionFailed != null, "resume previous stream");
+            if (smResumedSyncPoint == SyncPointState.successful) {
                 // We successfully resumed the stream, be done here
                 afterSuccessfulLogin(true);
                 return;
@@ -392,8 +404,14 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
             // SM resumption failed, what Smack does here is to report success of
             // lastFeaturesReceived in case of sm resumption was answered with 'failed' so that
             // normal resource binding can be tried.
-            LOGGER.fine("Stream resumption failed, continuing with normal stream establishment process");
+            assert smResumptionFailed != null;
+            LOGGER.fine("Stream resumption failed, continuing with normal stream establishment process: " + smResumptionFailed);
         }
+
+        // We either failed to resume a previous stream management (SM) session, or we did not even try. In any case,
+        // mark SM as not enabled. Most importantly, we do this prior calling bindResourceAndEstablishSession(), as the
+        // bind IQ may trigger a SM ack request, which would be invalid in the pre resource bound state.
+        smEnabledSyncPoint = false;
 
         List<Stanza> previouslyUnackedStanzas = new LinkedList<Stanza>();
         if (unacknowledgedStanzas != null) {
@@ -416,9 +434,10 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
         if (isSmAvailable() && useSm) {
             // Remove what is maybe left from previously stream managed sessions
             serverHandledStanzasCount = 0;
+            sendNonza(new Enable(useSmResumption, smClientMaxResumptionTime));
             // XEP-198 3. Enabling Stream Management. If the server response to 'Enable' is 'Failed'
             // then this is a non recoverable error and we therefore throw an exception.
-            smEnabledSyncPoint.sendAndWaitForResponseOrThrow(new Enable(useSmResumption, smClientMaxResumptionTime));
+            waitForConditionOrThrowConnectionException(() -> smEnabledSyncPoint, "enabling stream mangement");
             synchronized (requestAckPredicates) {
                 if (requestAckPredicates.isEmpty()) {
                     // Assure that we have at lest one predicate set up that so that we request acks
@@ -480,42 +499,64 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
     }
 
     private void shutdown(boolean instant) {
-        // First shutdown the writer, this will result in a closing stream element getting send to
-        // the server
-        LOGGER.finer("PacketWriter shutdown()");
-        packetWriter.shutdown(instant);
-        LOGGER.finer("PacketWriter has been shut down");
+        // The writer thread may already been finished at this point, for example when the connection is in the
+        // disconnected-but-resumable state. There is no need to wait for the closing stream tag from the server in this
+        // case.
+        if (!packetWriter.done()) {
+            // First shutdown the writer, this will result in a closing stream element getting send to
+            // the server
+            LOGGER.finer(packetWriter.threadName + " shutdown()");
+            packetWriter.shutdown(instant);
+            LOGGER.finer(packetWriter.threadName + " shutdown() returned");
 
-        if (!instant) {
-            waitForClosingStreamTagFromServer();
+            if (!instant) {
+                waitForClosingStreamTagFromServer();
+            }
         }
 
-        LOGGER.finer("PacketReader shutdown()");
+        LOGGER.finer(packetReader.threadName + " shutdown()");
         packetReader.shutdown();
-        LOGGER.finer("PacketReader has been shut down");
+        LOGGER.finer(packetReader.threadName + " shutdown() returned");
 
         CloseableUtil.maybeClose(socket, LOGGER);
 
         setWasAuthenticated();
 
-        // Wait for reader and writer threads to be terminated.
-        readerWriterSemaphore.acquireUninterruptibly(2);
-        readerWriterSemaphore.release(2);
+        try {
+            boolean readerAndWriterThreadsTermianted = waitFor(() -> !packetWriter.running && !packetReader.running);
+            if (!readerAndWriterThreadsTermianted) {
+                LOGGER.severe("Reader and/or writer threads did not terminate timely. Writer running: "
+                                + packetWriter.running + ", Reader running: " + packetReader.running);
+            } else {
+                LOGGER.fine("Reader and writer threads terminated");
+            }
+        } catch (InterruptedException e) {
+            LOGGER.log(Level.FINE, "Interrupted while waiting for reader and writer threads to terminate", e);
+        }
 
         if (disconnectedButResumeable) {
             return;
         }
 
         // If we are able to resume the stream, then don't set
-        // connected/authenticated/usingTLS to false since we like behave like we are still
+        // connected/authenticated/usingTLS to false since we like to behave like we are still
         // connected (e.g. sendStanza should not throw a NotConnectedException).
-        if (isSmResumptionPossible() && instant) {
-            disconnectedButResumeable = true;
+        if (instant) {
+            disconnectedButResumeable = isSmResumptionPossible();
+            if (!disconnectedButResumeable) {
+                // Reset the stream management session id to null, since the stream is no longer resumable. Note that we
+                // keep the unacknowledgedStanzas queue, because we want to resend them when we are reconnected.
+                smSessionId = null;
+            }
         } else {
             disconnectedButResumeable = false;
-            // Reset the stream management session id to null, since if the stream is cleanly closed, i.e. sending a closing
-            // stream tag, there is no longer a stream to resume.
-            smSessionId = null;
+
+            // Drop the stream management state if this is not an instant shutdown. We send
+            // a </stream> close tag and now the stream management state is no longer valid.
+            // This also prevents that we will potentially (re-)send any unavailable presence we
+            // may have send, because it got put into the unacknowledged queue and was not acknowledged before the
+            // connection terminated.
+            dropSmState();
             // Note that we deliberately do not reset authenticatedConnectionInitiallyEstablishedTimestamp here, so that the
             // information is available in the connectionClosedOnError() listeners.
         }
@@ -526,15 +567,6 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
         writer = null;
 
         initState();
-    }
-
-    @Override
-    protected void initState() {
-        super.initState();
-        maybeCompressFeaturesReceived.init();
-        compressSyncPoint.init();
-        smResumedSyncPoint.init();
-        smEnabledSyncPoint.init();
     }
 
     @Override
@@ -556,20 +588,24 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
     }
 
     private void connectUsingConfiguration() throws ConnectionException, IOException, InterruptedException {
-        List<HostAddress> failedAddresses = populateHostAddresses();
+        RemoteXmppTcpConnectionEndpoints.Result<Rfc6120TcpRemoteConnectionEndpoint> result = RemoteXmppTcpConnectionEndpoints.lookup(config);
+
+        List<RemoteConnectionException<Rfc6120TcpRemoteConnectionEndpoint>> connectionExceptions = new ArrayList<>();
+
         SocketFactory socketFactory = config.getSocketFactory();
         ProxyInfo proxyInfo = config.getProxyInfo();
         int timeout = config.getConnectTimeout();
         if (socketFactory == null) {
             socketFactory = SocketFactory.getDefault();
         }
-        for (HostAddress hostAddress : hostAddresses) {
-            Iterator<InetAddress> inetAddresses;
-            String host = hostAddress.getHost();
-            int port = hostAddress.getPort();
+        for (Rfc6120TcpRemoteConnectionEndpoint endpoint : result.discoveredRemoteConnectionEndpoints) {
+            Iterator<? extends InetAddress> inetAddresses;
+            String host = endpoint.getHost().toString();
+            UInt16 portUint16 = endpoint.getPort();
+            int port = portUint16.intValue();
             if (proxyInfo == null) {
-                inetAddresses = hostAddress.getInetAddresses().iterator();
-                assert (inetAddresses.hasNext());
+                inetAddresses = endpoint.getInetAddresses().iterator();
+                assert inetAddresses.hasNext();
 
                 innerloop: while (inetAddresses.hasNext()) {
                     // Create a *new* Socket before every connection attempt, i.e. connect() call, since Sockets are not
@@ -584,7 +620,9 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                     try {
                         socket = socketFuture.getOrThrow();
                     } catch (IOException e) {
-                        hostAddress.setException(inetAddress, e);
+                        RemoteConnectionException<Rfc6120TcpRemoteConnectionEndpoint> rce = new RemoteConnectionException<>(
+                                        endpoint, inetAddress, e);
+                        connectionExceptions.add(rce);
                         if (inetAddresses.hasNext()) {
                             continue innerloop;
                         } else {
@@ -594,43 +632,44 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                     LOGGER.finer("Established TCP connection to " + inetSocketAddress);
                     // We found a host to connect to, return here
                     this.host = host;
-                    this.port = port;
+                    this.port = portUint16;
                     return;
                 }
-                failedAddresses.add(hostAddress);
             } else {
+                // TODO: Move this into the inner-loop above. There appears no reason why we should not try a proxy
+                // connection to every inet address of each connection endpoint.
                 socket = socketFactory.createSocket();
-                StringUtils.requireNotNullNorEmpty(host, "Host of HostAddress " + hostAddress + " must not be null when using a Proxy");
+                StringUtils.requireNotNullNorEmpty(host, "Host of endpoint " + endpoint + " must not be null when using a Proxy");
                 final String hostAndPort = host + " at port " + port;
                 LOGGER.finer("Trying to establish TCP connection via Proxy to " + hostAndPort);
                 try {
                     proxyInfo.getProxySocketConnection().connect(socket, host, port, timeout);
                 } catch (IOException e) {
-                    hostAddress.setException(e);
-                    failedAddresses.add(hostAddress);
+                    CloseableUtil.maybeClose(socket, LOGGER);
+                    RemoteConnectionException<Rfc6120TcpRemoteConnectionEndpoint> rce = new RemoteConnectionException<>(endpoint, null, e);
+                    connectionExceptions.add(rce);
                     continue;
                 }
                 LOGGER.finer("Established TCP connection to " + hostAndPort);
                 // We found a host to connect to, return here
                 this.host = host;
-                this.port = port;
+                this.port = portUint16;
                 return;
             }
         }
+
         // There are no more host addresses to try
         // throw an exception and report all tried
         // HostAddresses in the exception
-        throw ConnectionException.from(failedAddresses);
+        throw EndpointConnectionException.from(result.lookupFailures, connectionExceptions);
     }
 
     /**
      * Initializes the connection by creating a stanza reader and writer and opening a
      * XMPP stream to the server.
      *
-     * @throws XMPPException if establishing a connection to the server fails.
-     * @throws SmackException if the server fails to respond back or if there is anther error.
-     * @throws IOException
-     * @throws InterruptedException
+     * @throws IOException if an I/O error occurred.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     private void initConnection() throws IOException, InterruptedException {
         compressionHandler = null;
@@ -638,15 +677,6 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
         // Set the reader and writer instance variables
         initReaderAndWriter();
 
-        int availableReaderWriterSemaphorePermits = readerWriterSemaphore.availablePermits();
-        if (availableReaderWriterSemaphorePermits < 2) {
-            Object[] logObjects = new Object[] {
-                            this,
-                            availableReaderWriterSemaphorePermits,
-            };
-            LOGGER.log(Level.FINE, "Not every reader/writer threads where terminated on connection re-initializtion of {0}. Available permits {1}", logObjects);
-        }
-        readerWriterSemaphore.acquire(2);
         // Start the writer thread. This will open an XMPP stream to the server
         packetWriter.init();
         // Start the reader thread. The startup() method will block until we
@@ -673,18 +703,12 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      * The server has indicated that TLS negotiation can start. We now need to secure the
      * existing plain connection and perform a handshake. This method won't return until the
      * connection has finished the handshake or an error occurred while securing the connection.
-     * @throws IOException
-     * @throws CertificateException
-     * @throws NoSuchAlgorithmException
-     * @throws NoSuchProviderException
-     * @throws KeyStoreException
-     * @throws UnrecoverableKeyException
-     * @throws KeyManagementException
-     * @throws SmackException
-     * @throws Exception if an exception occurs.
+     * @throws IOException if an I/O error occurred.
+     * @throws SecurityNotPossibleException if TLS is not possible.
+     * @throws CertificateException if there is an issue with the certificate.
      */
     @SuppressWarnings("LiteralClassName")
-    private void proceedTLSReceived() throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException, NoSuchProviderException, UnrecoverableKeyException, KeyManagementException, SmackException {
+    private void proceedTLSReceived() throws IOException, SecurityNotPossibleException, CertificateException {
         SmackTlsContext smackTlsContext = getSmackTlsContext();
 
         Socket plain = socket;
@@ -759,7 +783,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
 
     @Override
     public boolean isUsingCompression() {
-        return compressionHandler != null && compressSyncPoint.wasSuccessful();
+        return compressionHandler != null && compressSyncPoint;
     }
 
     /**
@@ -775,17 +799,17 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      * before authentication took place.
      * </p>
      *
-     * @throws NotConnectedException
-     * @throws SmackException
-     * @throws NoResponseException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws XMPPException if an XMPP protocol error was received.
      */
-    private void maybeEnableCompression() throws SmackException, InterruptedException {
+    private void maybeEnableCompression() throws SmackException, InterruptedException, XMPPException {
         if (!config.isCompressionEnabled()) {
             return;
         }
 
-        Compress.Feature compression = getFeature(Compress.Feature.ELEMENT, Compress.NAMESPACE);
+        Compress.Feature compression = getFeature(Compress.Feature.class);
         if (compression == null) {
             // Server does not support compression
             return;
@@ -793,7 +817,9 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
         // If stream compression was offered by the server and we want to use
         // compression then send compression request to the server
         if ((compressionHandler = maybeGetCompressionHandler(compression)) != null) {
-            compressSyncPoint.sendAndWaitForResponseOrThrow(new Compress(compressionHandler.getCompressionMethod()));
+            compressSyncPoint = false;
+            sendNonza(new Compress(compressionHandler.getCompressionMethod()));
+            waitForConditionOrThrowConnectionException(() -> compressSyncPoint, "establishing stream compression");
         } else {
             LOGGER.warning("Could not enable compression because no matching handler/method pair was found");
         }
@@ -808,31 +834,32 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      * </p>
      *
      * @throws XMPPException if an error occurs while trying to establish the connection.
-     * @throws SmackException
-     * @throws IOException
-     * @throws InterruptedException
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws IOException if an I/O error occurred.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     @Override
     protected void connectInternal() throws SmackException, IOException, XMPPException, InterruptedException {
-        closingStreamReceived.init();
         // Establishes the TCP connection to the server and does setup the reader and writer. Throws an exception if
         // there is an error establishing the connection
         connectUsingConfiguration();
 
+        connected = true;
+
         // We connected successfully to the servers TCP port
         initConnection();
 
-        // TLS handled will be successful either if TLS was established, or if it was not mandatory.
-        tlsHandled.checkIfSuccessOrWaitOrThrow();
+        // TLS handled will be true either if TLS was established, or if it was not mandatory.
+        waitForConditionOrThrowConnectionException(() -> tlsHandled, "establishing TLS");
 
         // Wait with SASL auth until the SASL mechanisms have been received
-        saslFeatureReceived.checkIfSuccessOrWaitOrThrow();
+        waitForConditionOrThrowConnectionException(() -> saslFeatureReceived, "SASL mechanisms stream feature from server");
     }
 
     /**
      * For unit testing purposes
      *
-     * @param writer
+     * @param writer TODO javadoc me please
      */
     protected void setWriter(Writer writer) {
         this.writer = writer;
@@ -840,43 +867,46 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
 
     @Override
     protected void afterFeaturesReceived() throws NotConnectedException, InterruptedException, SecurityRequiredByServerException {
-        StartTls startTlsFeature = getFeature(StartTls.ELEMENT, StartTls.NAMESPACE);
+        StartTls startTlsFeature = getFeature(StartTls.class);
         if (startTlsFeature != null) {
             if (startTlsFeature.required() && config.getSecurityMode() == SecurityMode.disabled) {
                 SecurityRequiredByServerException smackException = new SecurityRequiredByServerException();
-                tlsHandled.reportFailure(smackException);
+                currentSmackException = smackException;
+                notifyWaitingThreads();
                 throw smackException;
             }
 
             if (config.getSecurityMode() != ConnectionConfiguration.SecurityMode.disabled) {
                 sendNonza(new StartTls());
             } else {
-                tlsHandled.reportSuccess();
+                tlsHandled = true;
+                notifyWaitingThreads();
             }
         } else {
-            tlsHandled.reportSuccess();
+            tlsHandled = true;
+            notifyWaitingThreads();
         }
 
-        if (getSASLAuthentication().authenticationSuccessful()) {
+        if (isSaslAuthenticated()) {
             // If we have received features after the SASL has been successfully completed, then we
             // have also *maybe* received, as it is an optional feature, the compression feature
             // from the server.
-            maybeCompressFeaturesReceived.reportSuccess();
+            streamFeaturesAfterAuthenticationReceived = true;
+            notifyWaitingThreads();
         }
     }
 
-    /**
-     * Resets the parser using the latest connection's reader. Resetting the parser is necessary
-     * when the plain connection has been secured or when a new opening stream element is going
-     * to be sent by the server.
-     *
-     * @throws SmackException if the parser could not be reset.
-     * @throws InterruptedException
-     * @throws XmlPullParserException
-     */
-    void openStream() throws SmackException, InterruptedException, XmlPullParserException {
+    private void resetParser() throws IOException {
+        try {
+            packetReader.parser = SmackXmlParser.newXmlParser(reader);
+        } catch (XmlPullParserException e) {
+            throw new IOException(e);
+        }
+   }
+
+    private void openStreamAndResetParser() throws IOException, NotConnectedException, InterruptedException {
         sendStreamOpen();
-        packetReader.parser = SmackXmlParser.newXmlParser(reader);
+        resetParser();
     }
 
     protected class PacketReader {
@@ -887,6 +917,8 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
 
         private volatile boolean done;
 
+        private boolean running;
+
         /**
          * Initializes the reader in order to be used. The reader is initialized during the
          * first connection and when reconnecting due to an abruptly disconnection.
@@ -894,6 +926,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
         void init() {
             done = false;
 
+            running = true;
             Async.go(new Runnable() {
                 @Override
                 public void run() {
@@ -902,7 +935,8 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                         parsePackets();
                     } finally {
                         LOGGER.finer(threadName + " exit");
-                        XMPPTCPConnection.this.readerWriterSemaphore.release();
+                        running = false;
+                        notifyWaitingThreads();
                     }
                 }
             }, threadName);
@@ -919,15 +953,15 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
          * Parse top-level packets in order to process them further.
          */
         private void parsePackets() {
-            boolean initialStreamOpenSend = false;
             try {
-                openStream();
-                initialStreamOpenSend = true;
+                openStreamAndResetParser();
                 XmlPullParser.Event eventType = parser.getEventType();
                 while (!done) {
                     switch (eventType) {
                     case START_ELEMENT:
                         final String name = parser.getName();
+                        final String namespace = parser.getNamespace();
+
                         switch (name) {
                         case Message.ELEMENT:
                         case IQ.IQ_ELEMENT:
@@ -939,34 +973,25 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                             }
                             break;
                         case "stream":
-                            onStreamOpen(parser);
+                            if (StreamOpen.ETHERX_JABBER_STREAMS_NAMESPACE.equals(namespace)) {
+                                onStreamOpen(parser);
+                            }
                             break;
                         case "error":
                             StreamError streamError = PacketParserUtils.parseStreamError(parser);
-                            saslFeatureReceived.reportFailure(new StreamErrorException(streamError));
-                            // Mark the tlsHandled sync point as success, we will use the saslFeatureReceived sync
-                            // point to report the error, which is checked immediately after tlsHandled in
-                            // connectInternal().
-                            tlsHandled.reportSuccess();
+                            // Stream errors are non recoverable, throw this exceptions. Also note that this will set
+                            // this exception as current connection exceptions and notify any waiting threads.
                             throw new StreamErrorException(streamError);
                         case "features":
                             parseFeaturesAndNotify(parser);
                             break;
                         case "proceed":
-                            try {
-                                // Secure the connection by negotiating TLS
-                                proceedTLSReceived();
-                                // Send a new opening stream to the server
-                                openStream();
-                            }
-                            catch (Exception e) {
-                                SmackException.SmackWrappedException smackException = new SmackException.SmackWrappedException(e);
-                                tlsHandled.reportFailure(smackException);
-                                throw e;
-                            }
+                            // Secure the connection by negotiating TLS
+                            proceedTLSReceived();
+                            // Send a new opening stream to the server
+                            openStreamAndResetParser();
                             break;
                         case "failure":
-                            String namespace = parser.getNamespace(null);
                             switch (namespace) {
                             case "urn:ietf:params:xml:ns:xmpp-tls":
                                 // TLS negotiation has failed. The server will close the connection
@@ -977,30 +1002,12 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                                 // situation. It is still possible to authenticate and
                                 // use the connection but using an uncompressed connection
                                 // TODO Parse failure stanza
-                                compressSyncPoint.reportFailure(new SmackException.SmackMessageException(
-                                                "Could not establish compression"));
+                                currentSmackException = new SmackException.SmackMessageException("Could not establish compression");
+                                notifyWaitingThreads();
                                 break;
-                            case SaslStreamElements.NAMESPACE:
-                                // SASL authentication has failed. The server may close the connection
-                                // depending on the number of retries
-                                final SASLFailure failure = PacketParserUtils.parseSASLFailure(parser);
-                                getSASLAuthentication().authenticationFailed(failure);
-                                break;
+                            default:
+                                parseAndProcessNonza(parser);
                             }
-                            break;
-                        case Challenge.ELEMENT:
-                            // The server is challenging the SASL authentication made by the client
-                            String challengeData = parser.nextText();
-                            getSASLAuthentication().challengeReceived(challengeData);
-                            break;
-                        case Success.ELEMENT:
-                            Success success = new Success(parser.nextText());
-                            // We now need to bind a resource for the connection
-                            // Open a new stream and wait for the response
-                            openStream();
-                            // The SASL authentication with the server was successful. The next step
-                            // will be to bind the resource
-                            getSASLAuthentication().authenticated(success);
                             break;
                         case Compressed.ELEMENT:
                             // Server confirmed that it's possible to use stream compression. Start
@@ -1008,9 +1015,10 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                             // Initialize the reader and writer with the new compressed version
                             initReaderAndWriter();
                             // Send a new opening stream to the server
-                            openStream();
+                            openStreamAndResetParser();
                             // Notify that compression is being used
-                            compressSyncPoint.reportSuccess();
+                            compressSyncPoint = true;
+                            notifyWaitingThreads();
                             break;
                         case Enabled.ELEMENT:
                             Enabled enabled = ParseStreamManagement.enabled(parser);
@@ -1018,7 +1026,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                                 smSessionId = enabled.getId();
                                 if (StringUtils.isNullOrEmpty(smSessionId)) {
                                     SmackException xmppException = new SmackException.SmackMessageException("Stream Management 'enabled' element with resume attribute but without session id received");
-                                    smEnabledSyncPoint.reportFailure(xmppException);
+                                    setCurrentConnectionExceptionAndNotify(xmppException);
                                     throw xmppException;
                                 }
                                 smServerMaxResumptionTime = enabled.getMaxResumptionTime();
@@ -1028,28 +1036,19 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                             }
                             clientHandledStanzasCount = 0;
                             smWasEnabledAtLeastOnce = true;
-                            smEnabledSyncPoint.reportSuccess();
-                            LOGGER.fine("Stream Management (XEP-198): successfully enabled");
+                            smEnabledSyncPoint = true;
+                            notifyWaitingThreads();
                             break;
                         case Failed.ELEMENT:
                             Failed failed = ParseStreamManagement.failed(parser);
-                            FailedNonzaException xmppException = new FailedNonzaException(failed, failed.getStanzaErrorCondition());
-                            // If only XEP-198 would specify different failure elements for the SM
-                            // enable and SM resume failure case. But this is not the case, so we
-                            // need to determine if this is a 'Failed' response for either 'Enable'
-                            // or 'Resume'.
-                            if (smResumedSyncPoint.requestSent()) {
-                                smResumedSyncPoint.reportFailure(xmppException);
-                            }
-                            else {
-                                if (!smEnabledSyncPoint.requestSent()) {
-                                    throw new IllegalStateException("Failed element received but SM was not previously enabled");
-                                }
-                                smEnabledSyncPoint.reportFailure(new SmackException.SmackWrappedException(xmppException));
-                                // Report success for last lastFeaturesReceived so that in case a
-                                // failed resumption, we can continue with normal resource binding.
-                                // See text of XEP-198 5. below Example 11.
-                                lastFeaturesReceived.reportSuccess();
+                            if (smResumedSyncPoint == SyncPointState.request_sent) {
+                                // This is a <failed/> nonza in a response to resuming a previous stream, failure to do
+                                // so is non-fatal as we can simply continue with resource binding in this case.
+                                smResumptionFailed = failed;
+                                notifyWaitingThreads();
+                            } else {
+                                FailedNonzaException xmppException = new FailedNonzaException(failed, failed.getStanzaErrorCondition());
+                                setCurrentConnectionExceptionAndNotify(xmppException);
                             }
                             break;
                         case Resumed.ELEMENT:
@@ -1058,7 +1057,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                                 throw new StreamIdDoesNotMatchException(smSessionId, resumed.getPrevId());
                             }
                             // Mark SM as enabled
-                            smEnabledSyncPoint.reportSuccess();
+                            smEnabledSyncPoint = true;
                             // First, drop the stanzas already handled by the server
                             processHandledCount(resumed.getHandledCount());
                             // Then re-send what is left in the unacknowledged queue
@@ -1074,8 +1073,8 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                                 requestSmAcknowledgementInternal();
                             }
                             // Mark SM resumption as successful
-                            smResumedSyncPoint.reportSuccess();
-                            LOGGER.fine("Stream Management (XEP-198): Stream resumed");
+                            smResumedSyncPoint = SyncPointState.successful;
+                            notifyWaitingThreads();
                             break;
                         case AckAnswer.ELEMENT:
                             AckAnswer ackAnswer = ParseStreamManagement.ackAnswer(parser);
@@ -1083,14 +1082,14 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                             break;
                         case AckRequest.ELEMENT:
                             ParseStreamManagement.ackRequest(parser);
-                            if (smEnabledSyncPoint.wasSuccessful()) {
+                            if (smEnabledSyncPoint) {
                                 sendSmAcknowledgementInternal();
                             } else {
                                 LOGGER.warning("SM Ack Request received while SM is not enabled");
                             }
                             break;
                          default:
-                             LOGGER.warning("Unknown top level stream element: " + name);
+                             parseAndProcessNonza(parser);
                              break;
                         }
                         break;
@@ -1107,7 +1106,8 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                             // did re-start the queue again, causing this writer to assume that the queue is not
                             // shutdown, which results in a call to disconnect().
                             final boolean queueWasShutdown = packetWriter.queue.isShutdown();
-                            closingStreamReceived.reportSuccess();
+                            closingStreamReceived = true;
+                            notifyWaitingThreads();
 
                             if (queueWasShutdown) {
                                 // We received a closing stream element *after* we initiated the
@@ -1143,32 +1143,40 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                 }
             }
             catch (Exception e) {
-                closingStreamReceived.reportFailure(e);
-                // The exception can be ignored if the the connection is 'done'
-                // or if the it was caused because the socket got closed. It can not be ignored if it
-                // happened before (or while) the initial stream opened was send.
-                if (!(done || packetWriter.queue.isShutdown()) || !initialStreamOpenSend) {
-                    // Close the connection and notify connection listeners of the
-                    // error.
-                    notifyConnectionError(e);
+                // Set running to false since this thread will exit here and notifyConnectionError() will wait until
+                // the reader and writer thread's 'running' value is false. Hence we need to set it to false before calling
+                // notifyConnetctionError() below, even though run() also sets it to false. Therefore, do not remove this.
+                running = false;
+
+                String ignoreReasonThread = null;
+
+                boolean writerThreadWasShutDown = packetWriter.queue.isShutdown();
+                if (writerThreadWasShutDown) {
+                    ignoreReasonThread = "writer";
+                } else if (done) {
+                    ignoreReasonThread = "reader";
                 }
+
+                if (ignoreReasonThread != null) {
+                    LOGGER.log(Level.FINER, "Ignoring " + e + " as " + ignoreReasonThread + " was already shut down");
+                    return;
+                }
+
+                // Close the connection and notify connection listeners of the error.
+                notifyConnectionError(e);
             }
         }
     }
 
     protected class PacketWriter {
         public static final int QUEUE_SIZE = XMPPTCPConnection.QUEUE_SIZE;
+        public static final int UNACKKNOWLEDGED_STANZAS_QUEUE_SIZE = 1024;
+        public static final int UNACKKNOWLEDGED_STANZAS_QUEUE_SIZE_HIGH_WATER_MARK = (int) (0.3 * UNACKKNOWLEDGED_STANZAS_QUEUE_SIZE);
 
         private final String threadName = "Smack Writer (" + getConnectionCounter() + ')';
 
         private final ArrayBlockingQueueWithShutdown<Element> queue = new ArrayBlockingQueueWithShutdown<>(
                         QUEUE_SIZE, true);
-
-        /**
-         * Needs to be protected for unit testing purposes.
-         */
-        protected SynchronizationPoint<NoResponseException> shutdownDone = new SynchronizationPoint<>(
-                        XMPPTCPConnection.this, "shutdown completed");
 
         /**
          * If set, the stanza writer is shut down
@@ -1187,12 +1195,13 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
          */
         private boolean shouldBundleAndDefer;
 
+        private boolean running;
+
         /**
         * Initializes the writer in order to be used. It is called at the first connection and also
         * is invoked if the connection is disconnected by an error.
         */
         void init() {
-            shutdownDone.init();
             shutdownTimestamp = null;
 
             if (unacknowledgedStanzas != null) {
@@ -1203,6 +1212,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
             }
 
             queue.start();
+            running = true;
             Async.go(new Runnable() {
                 @Override
                 public void run() {
@@ -1211,7 +1221,8 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                         writePackets();
                     } finally {
                         LOGGER.finer(threadName + " exit");
-                        XMPPTCPConnection.this.readerWriterSemaphore.release();
+                        running = false;
+                        notifyWaitingThreads();
                     }
                 }
             }, threadName);
@@ -1237,8 +1248,8 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
          * Sends the specified element to the server.
          *
          * @param element the element to send.
-         * @throws NotConnectedException
-         * @throws InterruptedException
+         * @throws NotConnectedException if the XMPP connection is not connected.
+         * @throws InterruptedException if the calling thread was interrupted.
          */
         protected void sendStreamElement(Element element) throws NotConnectedException, InterruptedException {
             throwNotConnectedExceptionIfDoneAndResumptionNotPossible();
@@ -1259,19 +1270,11 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
         /**
          * Shuts down the stanza writer. Once this method has been called, no further
          * packets will be written to the server.
-         * @throws InterruptedException
          */
         void shutdown(boolean instant) {
             instantShutdown = instant;
             queue.shutdown();
             shutdownTimestamp = System.currentTimeMillis();
-            if (shutdownDone.isNotInInitialState()) {
-                try {
-                    shutdownDone.checkIfSuccessOrWait();
-                } catch (NoResponseException | InterruptedException e) {
-                    LOGGER.log(Level.WARNING, "shutdownDone was not marked as successful by the writer thread", e);
-                }
-            }
         }
 
         /**
@@ -1300,7 +1303,6 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
         }
 
         private void writePackets() {
-            Exception writerException = null;
             try {
                 // Write out packets from the queue.
                 while (!done()) {
@@ -1343,13 +1345,18 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                         // The client needs to add messages to the unacknowledged stanzas queue
                         // right after it sent 'enabled'. Stanza will be added once
                         // unacknowledgedStanzas is not null.
-                        unacknowledgedStanzas = new ArrayBlockingQueue<>(QUEUE_SIZE);
+                        unacknowledgedStanzas = new ArrayBlockingQueue<>(UNACKKNOWLEDGED_STANZAS_QUEUE_SIZE);
                     }
                     maybeAddToUnacknowledgedStanzas(packet);
 
-                    CharSequence elementXml = element.toXML(StreamOpen.CLIENT_NAMESPACE);
+                    CharSequence elementXml = element.toXML(outgoingStreamXmlEnvironment);
                     if (elementXml instanceof XmlStringBuilder) {
-                        ((XmlStringBuilder) elementXml).write(writer, StreamOpen.CLIENT_NAMESPACE);
+                        try {
+                            ((XmlStringBuilder) elementXml).write(writer, outgoingStreamXmlEnvironment);
+                        } catch (NullPointerException npe) {
+                            LOGGER.log(Level.FINE, "NPE in XmlStringBuilder of " + element.getClass() + ": " + element, npe);
+                            throw npe;
+                        }
                     }
                     else {
                         writer.write(elementXml.toString());
@@ -1373,7 +1380,6 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                             }
                             writer.write(packet.toXML().toString());
                         }
-                        writer.flush();
                     }
                     catch (Exception e) {
                         LOGGER.log(Level.WARNING,
@@ -1406,17 +1412,13 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
                 // The exception can be ignored if the the connection is 'done'
                 // or if the it was caused because the socket got closed
                 if (!(done() || queue.isShutdown())) {
-                    writerException = e;
+                    // Set running to false since this thread will exit here and notifyConnectionError() will wait until
+                    // the reader and writer thread's 'running' value is false.
+                    running = false;
+                    notifyConnectionError(e);
                 } else {
                     LOGGER.log(Level.FINE, "Ignoring Exception in writePackets()", e);
                 }
-            } finally {
-                LOGGER.fine("Reporting shutdownDone success in writer thread");
-                shutdownDone.reportSuccess();
-            }
-            // Delay notifyConnectionError after shutdownDone has been reported in the finally block.
-            if (writerException != null) {
-                notifyConnectionError(writerException);
             }
         }
 
@@ -1445,12 +1447,12 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
             // packet order is not stable at this point (sendStanzaInternal() can be
             // called concurrently).
             if (unacknowledgedStanzas != null && stanza != null) {
-                // If the unacknowledgedStanza queue is nearly full, request an new ack
+                // If the unacknowledgedStanza queue reaching its high water mark, request an new ack
                 // from the server in order to drain it
-                if (unacknowledgedStanzas.size() == 0.8 * XMPPTCPConnection.QUEUE_SIZE) {
+                if (unacknowledgedStanzas.size() == UNACKKNOWLEDGED_STANZAS_QUEUE_SIZE_HIGH_WATER_MARK) {
                     writer.write(AckRequest.INSTANCE.toXML().toString());
-                    writer.flush();
                 }
+
                 try {
                     // It is important the we put the stanza in the unacknowledged stanza
                     // queue before we put it on the wire
@@ -1570,7 +1572,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      *
      * @throws StreamManagementNotEnabledException if Stream Management is not enabled.
      * @throws NotConnectedException if the connection is not connected.
-     * @throws InterruptedException
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void requestSmAcknowledgement() throws StreamManagementNotEnabledException, NotConnectedException, InterruptedException {
         if (!isSmEnabled()) {
@@ -1593,7 +1595,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      *
      * @throws StreamManagementNotEnabledException if Stream Management is not enabled.
      * @throws NotConnectedException if the connection is not connected.
-     * @throws InterruptedException
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void sendSmAcknowledgement() throws StreamManagementNotEnabledException, NotConnectedException, InterruptedException {
         if (!isSmEnabled()) {
@@ -1603,7 +1605,12 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
     }
 
     private void sendSmAcknowledgementInternal() throws NotConnectedException, InterruptedException {
-        packetWriter.sendStreamElement(new AckAnswer(clientHandledStanzasCount));
+        AckAnswer ackAnswer = new AckAnswer(clientHandledStanzasCount);
+        // Do net put an ack to the queue if it has already been shutdown. Some servers, like ejabberd, like to request
+        // an ack even after we have send a stream close (and hance the queue was shutdown). If we would not check here,
+        // then the ack would dangle around in the queue, and be send on the next re-connection attempt even before the
+        // stream open.
+        packetWriter.queue.putIfNotShutdown(ackAnswer);
     }
 
     /**
@@ -1724,7 +1731,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      * @return true if Stream Management was negotiated.
      */
     public boolean isSmEnabled() {
-        return smEnabledSyncPoint.wasSuccessful();
+        return smEnabledSyncPoint;
     }
 
     /**
@@ -1733,7 +1740,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
      * @return true if the stream was resumed.
      */
     public boolean streamWasResumed() {
-        return smResumedSyncPoint.wasSuccessful();
+        return smResumedSyncPoint == SyncPointState.successful;
     }
 
     /**
@@ -1870,7 +1877,7 @@ public class XMPPTCPConnection extends AbstractXMPPConnection {
     /**
      * Set the default bundle and defer callback used for new connections.
      *
-     * @param defaultBundleAndDeferCallback
+     * @param defaultBundleAndDeferCallback TODO javadoc me please
      * @see BundleAndDeferCallback
      * @since 4.1
      */

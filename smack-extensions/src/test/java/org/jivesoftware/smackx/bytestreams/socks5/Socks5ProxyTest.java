@@ -16,11 +16,11 @@
  */
 package org.jivesoftware.smackx.bytestreams.socks5;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -35,7 +35,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 /**
  * Test for Socks5Proxy class.
@@ -86,7 +86,7 @@ public class Socks5ProxyTest {
      * When inserting new network addresses to the proxy the order should remain in the order they
      * were inserted.
      *
-     * @throws UnknownHostException
+     * @throws UnknownHostException if unknown host.
      */
     @Test
     public void shouldPreserveAddressOrderOnInsertions() throws UnknownHostException {
@@ -114,7 +114,7 @@ public class Socks5ProxyTest {
      * When replacing network addresses of the proxy the order should remain in the order if the
      * given list.
      *
-     * @throws UnknownHostException
+     * @throws UnknownHostException if unknown host.
      */
     @Test
     public void shouldPreserveAddressOrderOnReplace() throws UnknownHostException {

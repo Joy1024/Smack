@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2016-2019 Florian Schmaus
+ * Copyright 2016-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
  */
 package org.jivesoftware.smackx.iot;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,8 +35,8 @@ import org.jivesoftware.smackx.iot.data.element.NodeElement;
 import org.jivesoftware.smackx.iot.data.element.TimestampElement;
 
 import org.igniterealtime.smack.inttest.AbstractSmackIntegrationTest;
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.util.IntegrationTestRosterUtil;
 
 public class IoTDataIntegrationTest extends AbstractSmackIntegrationTest {
@@ -45,7 +45,7 @@ public class IoTDataIntegrationTest extends AbstractSmackIntegrationTest {
 
     private final IoTDataManager iotDataManagerTwo;
 
-    public IoTDataIntegrationTest(SmackIntegrationTestEnvironment<?> environment) {
+    public IoTDataIntegrationTest(SmackIntegrationTestEnvironment environment) {
         super(environment);
         iotDataManagerOne = IoTDataManager.getInstanceFor(conOne);
         iotDataManagerTwo = IoTDataManager.getInstanceFor(conTwo);
@@ -54,8 +54,8 @@ public class IoTDataIntegrationTest extends AbstractSmackIntegrationTest {
     /**
      * Connection one provides a thing, which momentary value is read out by connection two.
      *
-     * @throws Exception
-     * @throws TimeoutException
+     * @throws Exception if an exception occurs.
+     * @throws TimeoutException if there was a timeout.
      */
     @SmackIntegrationTest
     public void dataTest() throws Exception {

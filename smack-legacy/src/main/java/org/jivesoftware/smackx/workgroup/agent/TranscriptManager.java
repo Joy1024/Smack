@@ -48,15 +48,15 @@ public class TranscriptManager {
      * @param sessionID the id of the session to get the full transcript.
      * @param workgroupJID the JID of the workgroup that will process the request.
      * @return the full conversation transcript of a given session.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public Transcript getTranscript(EntityBareJid workgroupJID, String sessionID) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         Transcript request = new Transcript(sessionID);
         request.setTo(workgroupJID);
-        Transcript response = connection.createStanzaCollectorAndSend(request).nextResultOrThrow();
+        Transcript response = connection.sendIqRequestAndWaitForResponse(request);
         return response;
     }
 
@@ -67,15 +67,15 @@ public class TranscriptManager {
      * @param userID the id of the user to get his conversations.
      * @param workgroupJID the JID of the workgroup that will process the request.
      * @return the transcripts of a given user.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public Transcripts getTranscripts(EntityBareJid workgroupJID, Jid userID) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         Transcripts request = new Transcripts(userID);
         request.setTo(workgroupJID);
-        Transcripts response = connection.createStanzaCollectorAndSend(request).nextResultOrThrow();
+        Transcripts response = connection.sendIqRequestAndWaitForResponse(request);
         return response;
     }
 }

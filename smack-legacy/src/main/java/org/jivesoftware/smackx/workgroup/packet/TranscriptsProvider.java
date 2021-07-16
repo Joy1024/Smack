@@ -47,7 +47,8 @@ public class TranscriptsProvider extends IQProvider<Transcripts> {
     }
 
     @Override
-    public Transcripts parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment) throws XmlPullParserException, IOException {
+    public Transcripts parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment)
+                    throws XmlPullParserException, IOException, TextParseException, ParseException {
         Jid userID = ParserUtils.getJidAttribute(parser, "userID");
         List<Transcripts.TranscriptSummary> summaries = new ArrayList<>();
 
@@ -56,7 +57,8 @@ public class TranscriptsProvider extends IQProvider<Transcripts> {
             XmlPullParser.Event eventType = parser.next();
             if (eventType == XmlPullParser.Event.START_ELEMENT) {
                 if (parser.getName().equals("transcript")) {
-                    summaries.add(parseSummary(parser));
+                    Transcripts.TranscriptSummary summary = parseSummary(parser);
+                    summaries.add(summary);
                 }
             }
             else if (eventType == XmlPullParser.Event.END_ELEMENT) {
@@ -69,8 +71,8 @@ public class TranscriptsProvider extends IQProvider<Transcripts> {
         return new Transcripts(userID, summaries);
     }
 
-    private Transcripts.TranscriptSummary parseSummary(XmlPullParser parser) throws IOException,
-            XmlPullParserException {
+    private static Transcripts.TranscriptSummary parseSummary(XmlPullParser parser)
+                    throws IOException, XmlPullParserException, ParseException {
         String sessionID =  parser.getAttributeValue("", "sessionID");
         Date joinTime = null;
         Date leftTime = null;
@@ -81,18 +83,14 @@ public class TranscriptsProvider extends IQProvider<Transcripts> {
             XmlPullParser.Event eventType = parser.next();
             if (eventType == XmlPullParser.Event.START_ELEMENT) {
                 if (parser.getName().equals("joinTime")) {
-                    try {
-                        synchronized (UTC_FORMAT) {
-                            joinTime = UTC_FORMAT.parse(parser.nextText());
-                        }
-                    } catch (ParseException e) { }
+                    synchronized (UTC_FORMAT) {
+                        joinTime = UTC_FORMAT.parse(parser.nextText());
+                     }
                 }
                 else if (parser.getName().equals("leftTime")) {
-                    try {
-                        synchronized (UTC_FORMAT) {
-                            leftTime = UTC_FORMAT.parse(parser.nextText());
-                        }
-                    } catch (ParseException e) { }
+                    synchronized (UTC_FORMAT) {
+                        leftTime = UTC_FORMAT.parse(parser.nextText());
+                    }
                 }
                 else if (parser.getName().equals("agents")) {
                     agents = parseAgents(parser);
@@ -108,7 +106,8 @@ public class TranscriptsProvider extends IQProvider<Transcripts> {
         return new Transcripts.TranscriptSummary(sessionID, joinTime, leftTime, agents);
     }
 
-    private List<Transcripts.AgentDetail> parseAgents(XmlPullParser parser) throws IOException, XmlPullParserException {
+    private static List<Transcripts.AgentDetail> parseAgents(XmlPullParser parser)
+                    throws IOException, XmlPullParserException, ParseException {
         List<Transcripts.AgentDetail> agents = new ArrayList<>();
         String agentJID =  null;
         Date joinTime = null;
@@ -122,18 +121,14 @@ public class TranscriptsProvider extends IQProvider<Transcripts> {
                     agentJID = parser.nextText();
                 }
                 else if (parser.getName().equals("joinTime")) {
-                    try {
-                        synchronized (UTC_FORMAT) {
-                            joinTime = UTC_FORMAT.parse(parser.nextText());
-                        }
-                    } catch (ParseException e) { }
+                    synchronized (UTC_FORMAT) {
+                        joinTime = UTC_FORMAT.parse(parser.nextText());
+                    }
                 }
                 else if (parser.getName().equals("leftTime")) {
-                    try {
-                        synchronized (UTC_FORMAT) {
-                            leftTime = UTC_FORMAT.parse(parser.nextText());
-                        }
-                    } catch (ParseException e) { }
+                    synchronized (UTC_FORMAT) {
+                        leftTime = UTC_FORMAT.parse(parser.nextText());
+                    }
                 }
                 else if (parser.getName().equals("agent")) {
                     agentJID =  null;

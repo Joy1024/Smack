@@ -16,23 +16,24 @@
  */
 package org.jivesoftware.smackx.mood;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.assertFalse;
-import static junit.framework.TestCase.assertNotNull;
-import static junit.framework.TestCase.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.packet.StanzaBuilder;
 import org.jivesoftware.smack.test.util.SmackTestSuite;
 
 import org.jivesoftware.smackx.mood.element.MoodElement;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class MoodManagerTest extends SmackTestSuite {
 
     @Test
     public void addMessageTest() {
-        Message message = new Message();
+        Message message = StanzaBuilder.buildMessage().build();
         MoodManager.addMoodToMessage(message, Mood.sad);
 
         assertTrue(message.hasExtension(MoodElement.ELEMENT, MoodElement.NAMESPACE));
@@ -43,7 +44,7 @@ public class MoodManagerTest extends SmackTestSuite {
         assertFalse(element.hasConcretisation());
         assertFalse(element.hasText());
 
-        message = new Message();
+        message = StanzaBuilder.buildMessage().build();
         MoodManager.addMoodToMessage(message, Mood.happy, new MoodConcretisationTest.EcstaticMoodConcretisation());
         element = MoodElement.fromMessage(message);
         assertTrue(element.hasConcretisation());

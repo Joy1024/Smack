@@ -30,7 +30,6 @@ import org.jivesoftware.smack.DummyConnection;
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.roster.RosterTest.TestRosterListener;
 import org.jivesoftware.smack.roster.packet.RosterPacket;
@@ -95,8 +94,10 @@ public class RosterVersioningTest {
     /**
      * Tests that receiving an empty roster result causes the roster to be populated
      * by all entries of the roster store.
-     * @throws SmackException
-     * @throws XMPPException
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws InterruptedException if interrupted.
+     * @throws IOException if IO exception.
      */
     @Test(timeout = 300000)
     public void testEqualVersionStored() throws InterruptedException, IOException, XMPPException, SmackException {
@@ -129,9 +130,9 @@ public class RosterVersioningTest {
 
     /**
      * Tests that a non-empty roster result empties the store.
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws XmppStringprepException
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws XmppStringprepException if the provided string is invalid.
      */
     @Test(timeout = 5000)
     public void testOtherVersionStored() throws XMPPException, SmackException, XmppStringprepException {
@@ -144,7 +145,7 @@ public class RosterVersioningTest {
             RosterPacket sentRP = (RosterPacket) sentPacket;
             RosterPacket answer = new RosterPacket();
             answer.setStanzaId(sentRP.getStanzaId());
-            answer.setType(Type.result);
+            answer.setType(IQ.Type.result);
             answer.setTo(sentRP.getFrom());
 
             answer.setVersion("newVersion");
@@ -172,6 +173,7 @@ public class RosterVersioningTest {
 
     /**
      * Test roster versioning with roster pushes.
+     * @throws Throwable in case a throwable is thrown.
      */
     @SuppressWarnings("UndefinedEquals")
     @Test(timeout = 5000)
@@ -185,7 +187,7 @@ public class RosterVersioningTest {
         {
             RosterPacket rosterPush = new RosterPacket();
             rosterPush.setTo(JidCreate.from("rostertest@example.com/home"));
-            rosterPush.setType(Type.set);
+            rosterPush.setType(IQ.Type.set);
             rosterPush.setVersion("v97");
 
             Item pushedItem = vaglafItem();
@@ -211,7 +213,7 @@ public class RosterVersioningTest {
         {
             RosterPacket rosterPush = new RosterPacket();
             rosterPush.setTo(JidCreate.from("rostertest@example.com/home"));
-            rosterPush.setType(Type.set);
+            rosterPush.setType(IQ.Type.set);
             rosterPush.setVersion("v98");
 
             Item item = new Item(JidCreate.entityBareFrom("vaglaf@example.com"), "vaglaf the only");

@@ -81,7 +81,7 @@ completed with default values:
 MultiUserChatManager manager = MultiUserChatManager.getInstanceFor(connection);
 
 // Create a MultiUserChat using an XMPPConnection for a room
-MultiUserChat muc = = manager.getMultiUserChat(mucJid);
+MultiUserChat muc = manager.getMultiUserChat(mucJid);
 
 // Prepare a list of owners of the new room
 Set<Jid> owners = JidUtil.jidSetFrom(new String[] { "me@example.org", "juliet@example.org" });
@@ -472,7 +472,7 @@ muc = manager.getMultiUserChat("myroom@conference.jabber.org");
 muc.create("testbot");
 // User1 (which is the room owner) configures the room as a moderated room
 Form form = muc.getConfigurationForm();
-Form answerForm = form.createAnswerForm();
+FillableForm answerForm = configForm.getFillableForm();
 answerForm.setAnswer("muc#roomconfig_moderatedroom", "1");
 muc.sendConfigurationForm(answerForm);
 
@@ -612,7 +612,7 @@ muc = manager.getMultiUserChat("myroom@conference.jabber.org");
 muc.create("testbot");
 // User1 (which is the room owner) configures the room as a moderated room
 Form form = muc.getConfigurationForm();
-Form answerForm = form.createAnswerForm();
+FillableForm answerForm = configForm.getFillableForm();
 answerForm.setAnswer("muc#roomconfig_moderatedroom", "1");
 muc.sendConfigurationForm(answerForm);
 

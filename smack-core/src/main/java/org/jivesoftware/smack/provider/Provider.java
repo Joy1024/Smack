@@ -1,6 +1,6 @@
 /**
  *
- * Copyright © 2014-2019 Florian Schmaus
+ * Copyright © 2014-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,14 +18,12 @@
 package org.jivesoftware.smack.provider;
 
 import java.io.IOException;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import java.text.ParseException;
 
 import org.jivesoftware.smack.packet.Element;
 import org.jivesoftware.smack.packet.XmlEnvironment;
 import org.jivesoftware.smack.parsing.SmackParsingException;
 import org.jivesoftware.smack.util.ParserUtils;
-
 import org.jivesoftware.smack.xml.XmlPullParser;
 import org.jivesoftware.smack.xml.XmlPullParserException;
 
@@ -40,27 +38,7 @@ import org.jivesoftware.smack.xml.XmlPullParserException;
  * @author Florian Schmaus
  * @param <E> the type of the resulting element.
  */
-public abstract class Provider<E extends Element> {
-
-    private final Class<E> elementClass;
-
-    @SuppressWarnings("unchecked")
-    protected Provider() {
-        Type currentType = getClass().getGenericSuperclass();
-        while (!(currentType instanceof ParameterizedType)) {
-            Class<?> currentClass = (Class<?>) currentType;
-            currentType = currentClass.getGenericSuperclass();
-        }
-        ParameterizedType parameterizedGenericSuperclass = (ParameterizedType) currentType;
-        Type[] actualTypeArguments = parameterizedGenericSuperclass.getActualTypeArguments();
-        Type elementType = actualTypeArguments[0];
-
-        elementClass =  (Class<E>) elementType;
-    }
-
-    public final Class<E> getElementClass() {
-        return elementClass;
-    }
+public abstract class Provider<E extends Element> extends AbstractProvider<E> {
 
     public final E parse(XmlPullParser parser) throws IOException, XmlPullParserException, SmackParsingException {
         return parse(parser, null);
@@ -73,12 +51,13 @@ public abstract class Provider<E extends Element> {
         final int initialDepth = parser.getDepth();
         final XmlEnvironment xmlEnvironment = XmlEnvironment.from(parser, outerXmlEnvironment);
 
-        E e = parse(parser, initialDepth, xmlEnvironment);
+        E e = wrapExceptions(() -> parse(parser, initialDepth, xmlEnvironment));
 
         // XPP3 calling convention assert: Parser should be at end tag of the consumed/parsed element
         ParserUtils.forwardToEndTagOfDepth(parser, initialDepth);
         return e;
     }
 
-    public abstract E parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment) throws XmlPullParserException, IOException, SmackParsingException;
+    public abstract E parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment)
+                    throws XmlPullParserException, IOException, SmackParsingException, ParseException;
 }

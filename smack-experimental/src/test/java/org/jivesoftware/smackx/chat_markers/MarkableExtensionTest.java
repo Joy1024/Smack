@@ -19,6 +19,7 @@ package org.jivesoftware.smackx.chat_markers;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.packet.StanzaBuilder;
 import org.jivesoftware.smack.util.PacketParserUtils;
 import org.jivesoftware.smack.xml.XmlPullParser;
 
@@ -32,17 +33,19 @@ import org.jxmpp.jid.impl.JidCreate;
 public class MarkableExtensionTest {
 
     String markableMessageStanza = "<message xmlns='jabber:client' to='ingrichard@royalty.england.lit/throne' id='message-1'>"
-            + "<body>My lord, dispatch; read o&apos;er these articles.</body>"
+            + "<body>My lord, dispatch; read o'er these articles.</body>"
             + "<markable xmlns='urn:xmpp:chat-markers:0'/>" + "</message>";
 
     String markableExtension = "<markable xmlns='urn:xmpp:chat-markers:0'/>";
 
     @Test
     public void checkMarkableExtension() throws Exception {
-        Message message = new Message(JidCreate.from("ingrichard@royalty.england.lit/throne"));
-        message.setStanzaId("message-1");
-        message.setBody("My lord, dispatch; read o'er these articles.");
-        message.addExtension(ChatMarkersElements.MarkableExtension.INSTANCE);
+        Message message = StanzaBuilder.buildMessage("message-1")
+                .to(JidCreate.from("ingrichard@royalty.england.lit/throne"))
+                .setBody("My lord, dispatch; read o'er these articles.")
+                .addExtension(ChatMarkersElements.MarkableExtension.INSTANCE)
+                .build();
+
         assertEquals(markableMessageStanza, message.toXML().toString());
     }
 

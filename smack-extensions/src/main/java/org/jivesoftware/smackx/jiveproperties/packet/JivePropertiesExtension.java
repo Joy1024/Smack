@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.util.XmlStringBuilder;
@@ -47,6 +49,8 @@ public class JivePropertiesExtension implements ExtensionElement {
 
     public static final String ELEMENT = "properties";
 
+    public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
+
     private static final Logger LOGGER = Logger.getLogger(JivePropertiesExtension.class.getName());
 
     private final Map<String, Object> properties;
@@ -60,13 +64,13 @@ public class JivePropertiesExtension implements ExtensionElement {
     }
 
     /**
-     * Returns the stanza property with the specified name or <tt>null</tt> if the
+     * Returns the stanza property with the specified name or <code>null</code> if the
      * property doesn't exist. Property values that were originally primitives will
      * be returned as their object equivalent. For example, an int property will be
      * returned as an Integer, a double as a Double, etc.
      *
      * @param name the name of the property.
-     * @return the property, or <tt>null</tt> if the property doesn't exist.
+     * @return the property, or <code>null</code> if the property doesn't exist.
      */
     public synchronized Object getProperty(String name) {
         if (properties == null) {
@@ -209,6 +213,6 @@ public class JivePropertiesExtension implements ExtensionElement {
      * @since 4.2
      */
     public static JivePropertiesExtension from(Message message) {
-        return message.getExtension(ELEMENT, NAMESPACE);
+        return message.getExtension(JivePropertiesExtension.class);
     }
 }

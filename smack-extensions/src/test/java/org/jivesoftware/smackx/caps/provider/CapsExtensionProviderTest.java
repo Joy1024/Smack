@@ -16,17 +16,17 @@
  */
 package org.jivesoftware.smackx.caps.provider;
 
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import org.jivesoftware.smack.test.util.SmackTestSuite;
 import org.jivesoftware.smack.test.util.SmackTestUtil;
 
-import org.jivesoftware.smackx.InitExtensions;
 import org.jivesoftware.smackx.caps.packet.CapsExtension;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-public class CapsExtensionProviderTest extends InitExtensions {
+public class CapsExtensionProviderTest extends SmackTestSuite {
 
     @ParameterizedTest
     @EnumSource(SmackTestUtil.XmlPullParserKind.class)

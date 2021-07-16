@@ -16,29 +16,28 @@
  */
 package org.jivesoftware.smackx.omemo;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 
 import org.jivesoftware.smack.SmackException;
+import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.roster.Roster;
 import org.jivesoftware.smack.roster.RosterEntry;
+
 import org.jivesoftware.smackx.omemo.exceptions.CannotEstablishOmemoSessionException;
 import org.jivesoftware.smackx.omemo.exceptions.CorruptedOmemoKeyException;
-import org.jivesoftware.smackx.omemo.internal.OmemoCachedDeviceList;
 import org.jivesoftware.smackx.omemo.internal.OmemoDevice;
 import org.jivesoftware.smackx.omemo.trust.OmemoFingerprint;
-import org.jivesoftware.smackx.omemo.util.EphemeralTrustCallback;
-import org.jivesoftware.smackx.omemo.util.OmemoConstants;
 import org.jivesoftware.smackx.pubsub.PubSubException;
-import org.jivesoftware.smackx.pubsub.PubSubManager;
 
 import com.google.common.collect.Maps;
-
 
 public class OmemoManagerSetupHelper {
 
@@ -46,7 +45,7 @@ public class OmemoManagerSetupHelper {
     public static void trustAllIdentities(OmemoManager alice, OmemoManager bob)
             throws InterruptedException, SmackException.NotConnectedException, SmackException.NotLoggedInException,
             SmackException.NoResponseException, CannotEstablishOmemoSessionException, CorruptedOmemoKeyException,
-            XMPPException.XMPPErrorException, PubSubException.NotALeafNodeException {
+            XMPPException.XMPPErrorException, PubSubException.NotALeafNodeException, IOException {
         Roster roster = Roster.getInstanceFor(alice.getConnection());
 
         if (alice.getOwnJid() != bob.getOwnJid() &&
@@ -66,7 +65,7 @@ public class OmemoManagerSetupHelper {
     public static void trustAllIdentitiesWithTests(OmemoManager alice, OmemoManager bob)
             throws InterruptedException, SmackException.NotConnectedException, SmackException.NotLoggedInException,
             SmackException.NoResponseException, CannotEstablishOmemoSessionException, CorruptedOmemoKeyException,
-            XMPPException.XMPPErrorException, PubSubException.NotALeafNodeException {
+            XMPPException.XMPPErrorException, PubSubException.NotALeafNodeException, IOException {
         alice.requestDeviceListUpdateFor(bob.getOwnJid());
         HashMap<OmemoDevice, OmemoFingerprint> fps1 = alice.getActiveFingerprints(bob.getOwnJid());
 
@@ -124,48 +123,10 @@ public class OmemoManagerSetupHelper {
         }
     }
 
-    public static void cleanUpPubSub(OmemoManager omemoManager) {
-        PubSubManager pm = PubSubManager.getInstanceFor(omemoManager.getConnection(), omemoManager.getOwnJid());
-        try {
-            omemoManager.requestDeviceListUpdateFor(omemoManager.getOwnJid());
-        } catch (SmackException.NotConnectedException | InterruptedException | SmackException.NoResponseException | PubSubException.NotALeafNodeException | XMPPException.XMPPErrorException e) {
-            // ignore
-        }
-
-        OmemoCachedDeviceList deviceList = OmemoService.getInstance().getOmemoStoreBackend()
-                .loadCachedDeviceList(omemoManager.getOwnDevice(), omemoManager.getOwnJid());
-
-        for (int id : deviceList.getAllDevices()) {
-            try {
-                pm.getLeafNode(OmemoConstants.PEP_NODE_BUNDLE_FROM_DEVICE_ID(id)).deleteAllItems();
-            } catch (InterruptedException | SmackException.NoResponseException | SmackException.NotConnectedException |
-                    PubSubException.NotALeafNodeException | XMPPException.XMPPErrorException |
-                    PubSubException.NotAPubSubNodeException e) {
-                // Silent
-            }
-
-            try {
-                pm.deleteNode(OmemoConstants.PEP_NODE_BUNDLE_FROM_DEVICE_ID(id));
-            } catch (SmackException.NoResponseException | InterruptedException | SmackException.NotConnectedException
-                    | XMPPException.XMPPErrorException e) {
-                // Silent
-            }
-        }
-
-        try {
-            pm.getLeafNode(OmemoConstants.PEP_NODE_DEVICE_LIST).deleteAllItems();
-        } catch (InterruptedException | SmackException.NoResponseException | SmackException.NotConnectedException |
-                PubSubException.NotALeafNodeException | XMPPException.XMPPErrorException |
-                PubSubException.NotAPubSubNodeException e) {
-            // Silent
-        }
-
-        try {
-            pm.deleteNode(OmemoConstants.PEP_NODE_DEVICE_LIST);
-        } catch (SmackException.NoResponseException | InterruptedException | SmackException.NotConnectedException |
-                XMPPException.XMPPErrorException e) {
-            // Silent
-        }
+    public static void cleanUpPubSub(OmemoManager omemoManager)
+                    throws IOException, NotConnectedException, InterruptedException {
+        List<Exception> exceptions = omemoManager.purgeEverything();
+        assertTrue(exceptions.isEmpty(), "There where exceptions while purging OMEMO: " + exceptions);
     }
 
     public static void cleanUpRoster(OmemoManager omemoManager) {

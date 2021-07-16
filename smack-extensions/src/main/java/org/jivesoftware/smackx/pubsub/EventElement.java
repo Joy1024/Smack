@@ -19,8 +19,11 @@ package org.jivesoftware.smackx.pubsub;
 import java.util.Arrays;
 import java.util.List;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Stanza;
+import org.jivesoftware.smack.packet.XmlElement;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 
 import org.jivesoftware.smackx.pubsub.packet.PubSubNamespace;
@@ -33,7 +36,7 @@ import org.jivesoftware.smackx.pubsub.packet.PubSubNamespace;
  *
  * @author Robin Collier
  */
-public class EventElement implements EmbeddedPacketExtension {
+public class EventElement implements EmbeddedPacketExtension, ExtensionElement {
     /**
      * The constant String "event".
      */
@@ -43,6 +46,8 @@ public class EventElement implements EmbeddedPacketExtension {
      * The constant String "http://jabber.org/protocol/pubsub#event".
      */
     public static final String NAMESPACE = PubSubNamespace.event.getXmlns();
+
+    public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
     private final EventElementType type;
     private final NodeExtension ext;
@@ -57,8 +62,8 @@ public class EventElement implements EmbeddedPacketExtension {
     }
 
     @Override
-    public List<ExtensionElement> getExtensions() {
-        return Arrays.asList(new ExtensionElement[] {getEvent()});
+    public List<XmlElement> getExtensions() {
+        return Arrays.asList(new XmlElement[] {getEvent()});
     }
 
     public NodeExtension getEvent() {
@@ -67,12 +72,12 @@ public class EventElement implements EmbeddedPacketExtension {
 
     @Override
     public String getElementName() {
-        return "event";
+        return QNAME.getLocalPart();
     }
 
     @Override
     public String getNamespace() {
-        return PubSubNamespace.event.getXmlns();
+        return QNAME.getNamespaceURI();
     }
 
     @Override
@@ -85,6 +90,6 @@ public class EventElement implements EmbeddedPacketExtension {
     }
 
     public static EventElement from(Stanza stanza) {
-        return stanza.getExtension(ELEMENT, NAMESPACE);
+        return stanza.getExtension(EventElement.class);
     }
 }

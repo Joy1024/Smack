@@ -21,13 +21,13 @@ import java.lang.reflect.Method;
 
 import org.jivesoftware.smack.DummyConnection;
 import org.jivesoftware.smack.XMPPConnection;
+import org.jivesoftware.smack.test.util.SmackTestSuite;
 
-import org.jivesoftware.smackx.InitExtensions;
 import org.jivesoftware.smackx.xdata.packet.DataForm;
 
 import org.junit.jupiter.api.BeforeAll;
 
-public class MamTest extends InitExtensions {
+public class MamTest extends SmackTestSuite {
 
     protected static XMPPConnection connection;
     protected static String queryId;
@@ -49,7 +49,8 @@ public class MamTest extends InitExtensions {
             IllegalArgumentException, InvocationTargetException {
         Method methodGetNewMamForm = MamManager.class.getDeclaredMethod("getNewMamForm");
         methodGetNewMamForm.setAccessible(true);
-        return (DataForm) methodGetNewMamForm.invoke(mamManager);
+        DataForm.Builder dataFormBuilder = (DataForm.Builder) methodGetNewMamForm.invoke(mamManager);
+        return dataFormBuilder.build();
     }
 
 }

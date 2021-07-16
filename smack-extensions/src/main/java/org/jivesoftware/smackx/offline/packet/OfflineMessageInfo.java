@@ -19,11 +19,15 @@ package org.jivesoftware.smackx.offline.packet;
 
 import java.io.IOException;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.XmlEnvironment;
 import org.jivesoftware.smack.provider.ExtensionElementProvider;
 import org.jivesoftware.smack.xml.XmlPullParser;
 import org.jivesoftware.smack.xml.XmlPullParserException;
+
+import org.jivesoftware.smackx.offline.OfflineMessageManager;
 
 /**
  * OfflineMessageInfo is an extension included in the retrieved offline messages requested by
@@ -35,6 +39,8 @@ import org.jivesoftware.smack.xml.XmlPullParserException;
  */
 public class OfflineMessageInfo implements ExtensionElement {
 
+    public static final QName QNAME = new QName(OfflineMessageManager.NAMESPACE, "offline");
+
     private String node = null;
 
     /**
@@ -45,7 +51,7 @@ public class OfflineMessageInfo implements ExtensionElement {
     */
     @Override
     public String getElementName() {
-        return "offline";
+        return QNAME.getLocalPart();
     }
 
     /**
@@ -56,7 +62,7 @@ public class OfflineMessageInfo implements ExtensionElement {
      */
     @Override
     public String getNamespace() {
-        return "http://jabber.org/protocol/offline";
+        return QNAME.getNamespaceURI();
     }
 
     /**
@@ -99,8 +105,8 @@ public class OfflineMessageInfo implements ExtensionElement {
          *
          * @param parser the XML parser, positioned at the starting element of the extension.
          * @return a PacketExtension.
-         * @throws IOException
-         * @throws XmlPullParserException
+         * @throws IOException if an I/O error occurred.
+         * @throws XmlPullParserException if an error in the XML parser occurred.
          */
         @Override
         public OfflineMessageInfo parse(XmlPullParser parser,

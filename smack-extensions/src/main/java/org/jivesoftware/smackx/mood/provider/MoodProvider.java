@@ -45,11 +45,11 @@ public class MoodProvider extends ExtensionElementProvider<MoodElement> {
 
         outerloop: while (true) {
             XmlPullParser.Event tag = parser.next();
-            String name = parser.getName();
-            String namespace = parser.getNamespace();
 
             switch (tag) {
                 case START_ELEMENT:
+                    String name = parser.getName();
+                    String namespace = parser.getNamespace();
                     if (MoodElement.ELEM_TEXT.equals(name)) {
                         text = parser.nextText();
                         continue outerloop;
@@ -57,7 +57,7 @@ public class MoodProvider extends ExtensionElementProvider<MoodElement> {
 
                     if (!MoodElement.NAMESPACE.equals(namespace)) {
                         LOGGER.log(Level.FINE, "Foreign namespace " + namespace + " detected. Try to find suitable MoodConcretisationProvider.");
-                        MoodConcretisationProvider<?> provider = (MoodConcretisationProvider) ProviderManager.getExtensionProvider(name, namespace);
+                        MoodConcretisationProvider<?> provider = (MoodConcretisationProvider<?>) ProviderManager.getExtensionProvider(name, namespace);
                         if (provider != null) {
                             concretisation = provider.parse(parser);
                         } else {
@@ -74,7 +74,7 @@ public class MoodProvider extends ExtensionElementProvider<MoodElement> {
                     }
 
                 case END_ELEMENT:
-                    if (MoodElement.ELEMENT.equals(name)) {
+                    if (MoodElement.ELEMENT.equals(parser.getName())) {
                         MoodElement.MoodSubjectElement subjectElement = (mood == null && concretisation == null) ?
                                 null : new MoodElement.MoodSubjectElement(mood, concretisation);
                         return new MoodElement(subjectElement, text);

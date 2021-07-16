@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2019 Florian Schmaus
+ * Copyright 2019-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,12 +30,28 @@ public class SmackParsingException extends Exception {
         super(exception);
     }
 
+    public SmackParsingException(String message) {
+        super(message);
+    }
+
+    /**
+     * Deprecated, do not import.
+     * @deprecated do not import.
+     */
+    @Deprecated
+    // TODO: Remove in Smack 4.6.
     public static class SmackTextParseException extends SmackParsingException {
         /**
          *
          */
         private static final long serialVersionUID = 1L;
 
+        /**
+         * Deprecated, do not use.
+         * @param parsingException the exception.
+         * @deprecated do not use, simply throw ParseException.
+         */
+        @Deprecated
         public SmackTextParseException(ParseException parsingException) {
             super(parsingException);
         }
@@ -50,5 +66,29 @@ public class SmackParsingException extends Exception {
         public SmackUriSyntaxParsingException(URISyntaxException uriSyntaxException) {
             super(uriSyntaxException);
         }
+    }
+
+    public static class RequiredValueMissingException extends SmackParsingException {
+        /**
+        *
+        */
+       private static final long serialVersionUID = 1L;
+
+       public RequiredValueMissingException(String message) {
+            super(message);
+        }
+
+    }
+
+    public static class RequiredAttributeMissingException extends RequiredValueMissingException {
+        /**
+        *
+        */
+       private static final long serialVersionUID = 1L;
+
+       public RequiredAttributeMissingException(String attributeName) {
+            super("The required attribute '" + attributeName + "' is missing (or has the empty String as value)");
+        }
+
     }
 }

@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2014-2019 Florian Schmaus
+ * Copyright 2014-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@ import java.util.Random;
 
 import javax.security.auth.callback.CallbackHandler;
 
-import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.SmackException.SmackSaslException;
 import org.jivesoftware.smack.sasl.SASLMechanism;
 import org.jivesoftware.smack.util.ByteUtils;
@@ -227,8 +226,8 @@ public abstract class ScramMechanism extends SASLMechanism {
             authzidPortion = "a=" + authorizationId;
         }
 
-        String cbName = getChannelBindingName();
-        assert (StringUtils.isNotEmpty(cbName));
+        String cbName = getGs2CbindFlag();
+        assert StringUtils.isNotEmpty(cbName);
 
         return cbName + ',' + authzidPortion + ",";
     }
@@ -244,7 +243,13 @@ public abstract class ScramMechanism extends SASLMechanism {
         return ByteUtils.concat(gs2Header, cbindData);
     }
 
-    protected String getChannelBindingName() {
+    /**
+     * Get the SCRAM GSS-API Channel Binding Flag value.
+     *
+     * @return the gs2-cbind-flag value.
+     * @see <a href="https://tools.ietf.org/html/rfc5802#section-6">RFC 5802 § 6.</a>
+     */
+    protected String getGs2CbindFlag() {
         // Check if we are using TLS and if a "-PLUS" variant of this mechanism is enabled. Assuming that the "-PLUS"
         // variants always have precedence before the non-"-PLUS" variants this means that the server did not announce
         // the "-PLUS" variant, as otherwise we would have tried it.
@@ -257,9 +262,10 @@ public abstract class ScramMechanism extends SASLMechanism {
     }
 
     /**
+     * Get the channel binding data.
      *
      * @return the Channel Binding data.
-     * @throws SmackSaslException
+     * @throws SmackSaslException if a SASL specific error occurred.
      */
     protected byte[] getChannelBindingData() throws SmackSaslException {
         return null;
@@ -327,7 +333,7 @@ public abstract class ScramMechanism extends SASLMechanism {
      * "The characters ',' or '=' in usernames are sent as '=2C' and '=3D' respectively."
      * </p>
      *
-     * @param string
+     * @param string TODO javadoc me please
      * @return the escaped string
      */
     private static String escape(String string) {
@@ -352,10 +358,10 @@ public abstract class ScramMechanism extends SASLMechanism {
     /**
      * RFC 5802 § 2.2 HMAC(key, str)
      *
-     * @param key
-     * @param str
+     * @param key TODO javadoc me please
+     * @param str TODO javadoc me please
      * @return the HMAC-SHA1 value of the input.
-     * @throws SmackException
+     * @throws SmackSaslException if Smack detected an exceptional situation.
      */
     private byte[] hmac(byte[] key, byte[] str) throws SmackSaslException {
         try {
@@ -374,8 +380,8 @@ public abstract class ScramMechanism extends SASLMechanism {
      * </p>
      *
      * @param normalizedPassword the normalized password.
-     * @param salt
-     * @param iterations
+     * @param salt TODO javadoc me please
+     * @param iterations TODO javadoc me please
      * @return the result of the Hi function.
      * @throws SmackSaslException if a SASL related error occurs.
      */

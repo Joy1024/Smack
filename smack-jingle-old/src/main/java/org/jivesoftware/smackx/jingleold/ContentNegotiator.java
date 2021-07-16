@@ -20,8 +20,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.jivesoftware.smack.SmackException;
+import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPException;
+import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.packet.IQ;
 
 import org.jivesoftware.smackx.jingleold.listeners.JingleListener;
@@ -124,7 +126,7 @@ public class ContentNegotiator extends JingleNegotiator {
 
     /**
      * Set jingle transport manager.
-     * @param jingleTransportManager
+     * @param jingleTransportManager TODO javadoc me please
      */
     public void setJingleTransportManager(JingleTransportManager jingleTransportManager) {
         this.jingleTransportManager = jingleTransportManager;
@@ -175,7 +177,7 @@ public class ContentNegotiator extends JingleNegotiator {
     /**
      * Set the jmf negotiator.
      *
-     * @param mediaNeg
+     * @param mediaNeg TODO javadoc me please
      *            the description negotiator to set
      */
     protected void setMediaNegotiator(MediaNegotiator mediaNeg) {
@@ -205,7 +207,7 @@ public class ContentNegotiator extends JingleNegotiator {
     /**
      * Set TransportNegotiator
      *
-     * @param transNeg
+     * @param transNeg TODO javadoc me please
      *            the transNeg to set
      */
     protected void setTransportNegotiator(TransportNegotiator transNeg) {
@@ -225,6 +227,8 @@ public class ContentNegotiator extends JingleNegotiator {
 
     /**
      * Return true if the transport and content negotiators have finished.
+     *
+     * @return <code>true</code> if fully established.
      */
     public boolean isFullyEstablished() {
         boolean result = true;
@@ -263,7 +267,7 @@ public class ContentNegotiator extends JingleNegotiator {
         return result;
     }
 
-    public void triggerContentEstablished() throws NotConnectedException, InterruptedException {
+    public void triggerContentEstablished() throws NotConnectedException, InterruptedException, NoResponseException, XMPPErrorException {
 
         PayloadType bestCommonAudioPt = getMediaNegotiator().getBestCommonAudioPt();
         TransportCandidate bestRemoteCandidate = getTransportNegotiator().getBestRemoteCandidate();
@@ -275,10 +279,12 @@ public class ContentNegotiator extends JingleNegotiator {
 
     /**
      * Trigger a session established event.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
      */
-    private void triggerContentEstablished(PayloadType pt, TransportCandidate rc, TransportCandidate lc) throws NotConnectedException, InterruptedException {
+    private void triggerContentEstablished(PayloadType pt, TransportCandidate rc, TransportCandidate lc) throws NotConnectedException, InterruptedException, NoResponseException, XMPPErrorException {
 
         // Let the session know that we've established a content/media segment.
         JingleSession session = getSession();

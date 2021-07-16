@@ -1,24 +1,30 @@
 /**
  *
- * Copyright 2016 Florian Schmaus
+ * Copyright 2016-2021 Florian Schmaus
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This file is part of smack-repl.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * smack-repl is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
  */
 package org.igniterealtime.smack.smackrepl;
 
 import java.io.IOException;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Date;
+import java.util.logging.Logger;
 
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.SmackException.NoResponseException;
@@ -26,15 +32,19 @@ import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnection;
+import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.tcp.XMPPTCPConnection;
 import org.jivesoftware.smack.tcp.XMPPTCPConnectionConfiguration;
 import org.jivesoftware.smack.util.TLSUtils;
-
+import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.iqregister.AccountManager;
 
 import org.jxmpp.jid.DomainBareJid;
 import org.jxmpp.jid.impl.JidCreate;
 import org.jxmpp.jid.parts.Localpart;
+import org.jxmpp.stringprep.XmppStringprepException;
+import org.jxmpp.util.XmppDateTime;
 
 public class XmppTools {
 
@@ -101,5 +111,41 @@ public class XmppTools {
         } finally {
             connection.disconnect();
         }
+    }
+
+    public static void modularConnectionTest(ModularXmppClientToServerConnection connection, String messageTo) throws XMPPException, SmackException, IOException, InterruptedException {
+        connection.addConnectionStateMachineListener((event, c) -> {
+            Logger.getAnonymousLogger().info("Connection event: " + event);
+        });
+
+        connection.connect();
+
+        connection.login();
+
+        XmppTools.sendItsAlive(messageTo, connection);
+
+        Thread.sleep(1000);
+
+        connection.disconnect();
+
+        ModularXmppClientToServerConnection.Stats connectionStats = connection.getStats();
+        ServiceDiscoveryManager.Stats serviceDiscoveryManagerStats = ServiceDiscoveryManager.getInstanceFor(connection).getStats();
+
+        // CHECKSTYLE:OFF
+        System.out.println("NIO successfully finished, yeah!\n" + connectionStats + '\n' + serviceDiscoveryManagerStats);
+        // CHECKSTYLE:ON
+    }
+
+    public static void sendItsAlive(String to, XMPPConnection connection)
+                    throws XmppStringprepException, NotConnectedException, InterruptedException {
+        if (to == null) {
+            return;
+        }
+
+        Message message = connection.getStanzaFactory().buildMessageStanza()
+                        .to(to)
+                        .setBody("It is alive! " + XmppDateTime.formatXEP0082Date(new Date()))
+                        .build();
+        connection.sendStanza(message);
     }
 }

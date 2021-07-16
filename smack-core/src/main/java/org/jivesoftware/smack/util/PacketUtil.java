@@ -1,6 +1,6 @@
 /**
  *
- * Copyright © 2014 Florian Schmaus
+ * Copyright © 2014-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,43 +18,9 @@ package org.jivesoftware.smack.util;
 
 import java.util.Collection;
 
-import org.jivesoftware.smack.packet.ExtensionElement;
+import org.jivesoftware.smack.packet.XmlElement;
 
 public class PacketUtil {
-
-    /**
-     * Get a extension element from a collection.
-     * @param collection
-     * @param element
-     * @param namespace
-     * @param <PE>
-     * @return the extension element
-     * @deprecated use {@link #extensionElementFrom(Collection, String, String)} instead.
-     */
-    @Deprecated
-    public static <PE extends ExtensionElement> PE packetExtensionfromCollection(
-            Collection<ExtensionElement> collection, String element,
-            String namespace) {
-        return extensionElementFrom(collection, element, namespace);
-    }
-
-    /**
-     * Get a extension element from a collection.
-     *
-     * @param collection Collection of ExtensionElements.
-     * @param element name of the targeted ExtensionElement.
-     * @param namespace namespace of the targeted ExtensionElement.
-     * @param <PE> Type of the ExtensionElement
-     *
-     * @return the extension element
-     * @deprecated use {@link #extensionElementFrom(Collection, String, String)} instead
-     */
-    @Deprecated
-    public static <PE extends ExtensionElement> PE packetExtensionFromCollection(
-                    Collection<ExtensionElement> collection, String element,
-                    String namespace) {
-        return extensionElementFrom(collection, element, namespace);
-    }
 
     /**
      * Get a extension element from a collection.
@@ -67,9 +33,9 @@ public class PacketUtil {
      * @return the extension element
      */
     @SuppressWarnings("unchecked")
-    public static <PE extends ExtensionElement> PE extensionElementFrom(Collection<ExtensionElement> collection,
+    public static <PE extends XmlElement> PE extensionElementFrom(Collection<XmlElement> collection,
                     String element, String namespace) {
-        for (ExtensionElement packetExtension : collection) {
+        for (XmlElement packetExtension : collection) {
             if ((element == null || packetExtension.getElementName().equals(
                             element))
                             && packetExtension.getNamespace().equals(namespace)) {

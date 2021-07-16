@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.util.StringUtils;
@@ -32,6 +34,7 @@ public class SpoilerElement implements ExtensionElement {
 
     public static final String ELEMENT = "spoiler";
     public static final String NAMESPACE = SpoilerManager.NAMESPACE_0;
+    public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
     public static final SpoilerElement EMPTY = new SpoilerElement(null, null);
 
@@ -116,11 +119,10 @@ public class SpoilerElement implements ExtensionElement {
             return Collections.emptyMap();
         }
 
-        List<ExtensionElement> spoilers = message.getExtensions(SpoilerElement.ELEMENT, NAMESPACE);
+        List<SpoilerElement> spoilers = message.getExtensions(SpoilerElement.class);
         Map<String, String> map = new HashMap<>();
 
-        for (ExtensionElement e : spoilers) {
-            SpoilerElement s = (SpoilerElement) e;
+        for (SpoilerElement s : spoilers) {
             if (s.getLanguage() == null || s.getLanguage().equals("")) {
                 map.put("", s.getHint());
             } else {
@@ -131,12 +133,7 @@ public class SpoilerElement implements ExtensionElement {
         return map;
     }
 
-    /**
-     * Return the language of the hint.
-     * May be null.
-     *
-     * @return language of hint text
-     */
+    @Override
     public String getLanguage() {
         return language;
     }
@@ -153,8 +150,7 @@ public class SpoilerElement implements ExtensionElement {
 
     @Override
     public CharSequence toXML(org.jivesoftware.smack.packet.XmlEnvironment enclosingNamespace) {
-        XmlStringBuilder xml = new XmlStringBuilder(this);
-        xml.optXmlLangAttribute(getLanguage());
+        XmlStringBuilder xml = new XmlStringBuilder(this, enclosingNamespace);
         if (getHint() == null) {
             xml.closeEmptyElement();
         } else {

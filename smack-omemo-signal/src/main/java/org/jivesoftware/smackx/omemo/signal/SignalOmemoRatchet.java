@@ -20,6 +20,7 @@
  */
 package org.jivesoftware.smackx.omemo.signal;
 
+import java.io.IOException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -73,7 +74,7 @@ public class SignalOmemoRatchet
     @Override
     public byte[] doubleRatchetDecrypt(OmemoDevice sender, byte[] encryptedKey)
             throws CorruptedOmemoKeyException, NoRawSessionException, CryptoFailedException,
-            UntrustedOmemoIdentityException {
+            UntrustedOmemoIdentityException, IOException {
 
         SessionCipher cipher = getCipher(sender);
         byte[] decryptedKey;
@@ -148,9 +149,8 @@ public class SignalOmemoRatchet
             throw new AssertionError("Signals trust management MUST be disabled.");
         }
 
-        // TODO: Figure out, if this is enough...
-        int type = (ciphertextMessage.getType() == CiphertextMessage.PREKEY_TYPE ?
-                OmemoElement.TYPE_OMEMO_PREKEY_MESSAGE : OmemoElement.TYPE_OMEMO_MESSAGE);
+        int type = ciphertextMessage.getType() == CiphertextMessage.PREKEY_TYPE ?
+                OmemoElement.TYPE_OMEMO_PREKEY_MESSAGE : OmemoElement.TYPE_OMEMO_MESSAGE;
 
         return new CiphertextTuple(ciphertextMessage.serialize(), type);
     }

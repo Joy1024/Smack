@@ -27,6 +27,7 @@ import org.jivesoftware.smack.packet.Message.Type;
  * @see org.jivesoftware.smack.packet.Message.Type
  * @author Ward Harold
  */
+@SuppressWarnings("BadImport")
 public final class MessageTypeFilter extends FlexibleStanzaTypeFilter<Message> {
 
     public static final StanzaFilter NORMAL = new MessageTypeFilter(Type.normal);
@@ -35,6 +36,7 @@ public final class MessageTypeFilter extends FlexibleStanzaTypeFilter<Message> {
     public static final StanzaFilter HEADLINE = new MessageTypeFilter(Type.headline);
     public static final StanzaFilter ERROR = new MessageTypeFilter(Type.error);
     public static final StanzaFilter NORMAL_OR_CHAT = new OrFilter(NORMAL, CHAT);
+    public static final StanzaFilter NORMAL_OR_HEADLINE = new OrFilter(NORMAL, HEADLINE);
     public static final StanzaFilter NORMAL_OR_CHAT_OR_HEADLINE = new OrFilter(NORMAL_OR_CHAT,
                     HEADLINE);
 

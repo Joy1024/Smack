@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2013-2014 Georg Lukas
+ * Copyright 2013-2014 Georg Lukas, 2020-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,12 @@
  */
 package org.jivesoftware.smackx.carbons.packet;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.packet.MessageBuilder;
+import org.jivesoftware.smack.packet.XmlElement;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 
 import org.jivesoftware.smackx.forward.packet.Forwarded;
@@ -33,11 +37,11 @@ import org.jivesoftware.smackx.forward.packet.Forwarded;
  *
  * @author Georg Lukas
  */
-public class CarbonExtension implements ExtensionElement {
+public class CarbonExtension implements XmlElement {
     public static final String NAMESPACE = Carbon.NAMESPACE;
 
     private final Direction dir;
-    private final Forwarded fwd;
+    private final Forwarded<Message> fwd;
 
     /**
      * Construct a Carbon message extension.
@@ -45,7 +49,7 @@ public class CarbonExtension implements ExtensionElement {
      * @param dir Determines if the carbon is being sent/received
      * @param fwd The forwarded message.
      */
-    public CarbonExtension(Direction dir, Forwarded fwd) {
+    public CarbonExtension(Direction dir, Forwarded<Message> fwd) {
         this.dir = dir;
         this.fwd = fwd;
     }
@@ -64,7 +68,7 @@ public class CarbonExtension implements ExtensionElement {
      *
      * @return the {@link Forwarded} message contained in this Carbon.
      */
-    public Forwarded getForwarded() {
+    public Forwarded<Message> getForwarded() {
         return fwd;
     }
 
@@ -114,9 +118,9 @@ public class CarbonExtension implements ExtensionElement {
      * @return a Carbon if available, null otherwise.
      */
     public static CarbonExtension from(Message msg) {
-        CarbonExtension cc = msg.getExtension(Direction.received.name(), NAMESPACE);
+        CarbonExtension cc = (CarbonExtension) msg.getExtensionElement(Direction.received.name(), NAMESPACE);
         if (cc == null)
-            cc = msg.getExtension(Direction.sent.name(), NAMESPACE);
+            cc = (CarbonExtension) msg.getExtensionElement(Direction.sent.name(), NAMESPACE);
         return cc;
     }
 
@@ -135,6 +139,7 @@ public class CarbonExtension implements ExtensionElement {
     public static final class Private implements ExtensionElement {
         public static final Private INSTANCE = new Private();
         public static final String ELEMENT = "private";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private Private() {
         }
@@ -158,8 +163,21 @@ public class CarbonExtension implements ExtensionElement {
          * Marks a message "private", so that it will not be carbon-copied, by adding private packet
          * extension to the message.
          *
-         * @param message the message to add the private extension to
+         * @param messageBuilder the message to add the private extension to
          */
+        public static void addTo(MessageBuilder messageBuilder) {
+            messageBuilder.addExtension(INSTANCE);
+        }
+
+        /**
+         * Marks a message "private", so that it will not be carbon-copied, by adding private packet
+         * extension to the message.
+         *
+         * @param message the message to add the private extension to
+         * @deprecated use {@link #addTo(MessageBuilder)} instead.
+         */
+        // TODO: Remove in Smack 4.6
+        @Deprecated
         public static void addTo(Message message) {
             message.addExtension(INSTANCE);
         }

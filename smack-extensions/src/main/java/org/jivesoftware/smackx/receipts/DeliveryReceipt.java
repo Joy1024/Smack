@@ -19,8 +19,11 @@ package org.jivesoftware.smackx.receipts;
 import java.util.List;
 import java.util.Map;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.packet.XmlElement;
 import org.jivesoftware.smack.provider.EmbeddedExtensionProvider;
 import org.jivesoftware.smack.util.XmlStringBuilder;
 
@@ -33,6 +36,7 @@ import org.jivesoftware.smack.util.XmlStringBuilder;
 public class DeliveryReceipt implements ExtensionElement {
     public static final String NAMESPACE = "urn:xmpp:receipts";
     public static final String ELEMENT = "received";
+    public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
     /**
      * original ID of the delivered message
@@ -89,7 +93,7 @@ public class DeliveryReceipt implements ExtensionElement {
      * @return the {@link DeliveryReceipt} extension or {@code null}
      */
     public static DeliveryReceipt from(Message message) {
-        return message.getExtension(ELEMENT, NAMESPACE);
+        return message.getExtension(DeliveryReceipt.class);
     }
 
     /**
@@ -99,7 +103,7 @@ public class DeliveryReceipt implements ExtensionElement {
 
         @Override
         protected DeliveryReceipt createReturnExtension(String currentElement, String currentNamespace,
-                Map<String, String> attributeMap, List<? extends ExtensionElement> content) {
+                Map<String, String> attributeMap, List<? extends XmlElement> content) {
             return new DeliveryReceipt(attributeMap.get("id"));
         }
 

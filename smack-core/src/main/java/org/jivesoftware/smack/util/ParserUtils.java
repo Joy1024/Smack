@@ -1,6 +1,6 @@
 /**
  *
- * Copyright © 2014-2019 Florian Schmaus
+ * Copyright © 2014-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,11 @@ import java.util.Locale;
 
 import javax.xml.namespace.QName;
 
+import org.jivesoftware.smack.datatypes.UInt16;
+import org.jivesoftware.smack.datatypes.UInt32;
+import org.jivesoftware.smack.packet.XmlEnvironment;
 import org.jivesoftware.smack.parsing.SmackParsingException;
-import org.jivesoftware.smack.parsing.SmackParsingException.SmackTextParseException;
+import org.jivesoftware.smack.parsing.SmackParsingException.RequiredAttributeMissingException;
 import org.jivesoftware.smack.parsing.SmackParsingException.SmackUriSyntaxParsingException;
 import org.jivesoftware.smack.xml.XmlPullParser;
 import org.jivesoftware.smack.xml.XmlPullParserException;
@@ -48,7 +51,7 @@ public class ParserUtils {
     public static final String JID = "jid";
 
     public static void assertAtStartTag(XmlPullParser parser) throws XmlPullParserException {
-        assert (parser.getEventType() == XmlPullParser.Event.START_ELEMENT);
+        assert parser.getEventType() == XmlPullParser.Event.START_ELEMENT;
     }
 
     public static void assertAtStartTag(XmlPullParser parser, String name) throws XmlPullParserException {
@@ -57,7 +60,18 @@ public class ParserUtils {
     }
 
     public static void assertAtEndTag(XmlPullParser parser) throws XmlPullParserException {
-        assert (parser.getEventType() == XmlPullParser.Event.END_ELEMENT);
+        assert parser.getEventType() == XmlPullParser.Event.END_ELEMENT;
+    }
+
+    public static void forwardToStartElement(XmlPullParser parser) throws XmlPullParserException, IOException {
+         // Wind the parser forward to the first start tag
+        XmlPullParser.Event event = parser.getEventType();
+        while (event != XmlPullParser.Event.START_ELEMENT) {
+            if (event == XmlPullParser.Event.END_DOCUMENT) {
+                throw new IllegalArgumentException("Document contains no start tag");
+            }
+            event = parser.next();
+        }
     }
 
     public static void forwardToEndTagOfDepth(XmlPullParser parser, int depth)
@@ -154,8 +168,8 @@ public class ParserUtils {
     /**
      * Get the boolean value of an argument.
      *
-     * @param parser
-     * @param name
+     * @param parser TODO javadoc me please
+     * @param name TODO javadoc me please
      * @return the boolean value or null of no argument of the given name exists
      */
     public static Boolean getBooleanAttribute(XmlPullParser parser, String name) {
@@ -175,6 +189,11 @@ public class ParserUtils {
         else {
             return bool;
         }
+    }
+
+    public static Byte getByteAttributeFromNextText(XmlPullParser parser) throws IOException, XmlPullParserException {
+        String nextText = parser.nextText();
+        return Byte.valueOf(nextText);
     }
 
     public static int getIntegerAttributeOrThrow(XmlPullParser parser, String name, String throwMessage)
@@ -204,6 +223,22 @@ public class ParserUtils {
         }
     }
 
+    public static UInt16 getUInt16Attribute(XmlPullParser parser, String name) {
+        Integer integer = getIntegerAttribute(parser, name);
+        if (integer == null) {
+            return null;
+        }
+        return UInt16.from(integer);
+    }
+
+    public static UInt16 getRequiredUInt16Attribute(XmlPullParser parser, String name) throws RequiredAttributeMissingException {
+        UInt16 uint16 = getUInt16Attribute(parser, name);
+        if (uint16 == null) {
+            throw new SmackParsingException.RequiredAttributeMissingException(name);
+        }
+        return uint16;
+    }
+
     public static int getIntegerFromNextText(XmlPullParser parser) throws XmlPullParserException, IOException {
         String intString = parser.nextText();
         return Integer.valueOf(intString);
@@ -224,6 +259,14 @@ public class ParserUtils {
         else {
             return l;
         }
+    }
+
+    public static UInt32 getUInt32Attribute(XmlPullParser parser, String name) {
+        Long l = getLongAttribute(parser, name);
+        if (l == null) {
+            return null;
+        }
+        return UInt32.from(l);
     }
 
     public static double getDoubleFromNextText(XmlPullParser parser) throws XmlPullParserException, IOException {
@@ -264,30 +307,23 @@ public class ParserUtils {
         return s;
     }
 
-    public static Date getDateFromOptionalXep82String(String dateString) throws SmackTextParseException {
+    public static Date getDateFromOptionalXep82String(String dateString) throws ParseException {
         if (dateString == null) {
             return null;
         }
         return getDateFromXep82String(dateString);
     }
 
-    public static Date getDateFromXep82String(String dateString) throws SmackTextParseException {
-        try {
-            return XmppDateTime.parseXEP0082Date(dateString);
-        } catch (ParseException e) {
-            throw new SmackParsingException.SmackTextParseException(e);
-        }
+    public static Date getDateFromXep82String(String dateString) throws ParseException {
+        return XmppDateTime.parseXEP0082Date(dateString);
     }
 
-    public static Date getDateFromString(String dateString) throws SmackTextParseException {
-        try {
-            return XmppDateTime.parseDate(dateString);
-        } catch (ParseException e) {
-            throw new SmackParsingException.SmackTextParseException(e);
-        }
+    public static Date getDateFromString(String dateString) throws ParseException {
+        return XmppDateTime.parseDate(dateString);
     }
 
-    public static Date getDateFromNextText(XmlPullParser parser) throws XmlPullParserException, IOException, SmackTextParseException {
+    public static Date getDateFromNextText(XmlPullParser parser)
+                    throws XmlPullParserException, IOException, ParseException {
         String dateString = parser.nextText();
         return getDateFromString(dateString);
     }
@@ -316,6 +352,14 @@ public class ParserUtils {
             throw new IOException("Next text is null or empty (" + text + ')');
         }
         return text;
+    }
+
+    public static String getXmlLang(XmlPullParser parser, XmlEnvironment xmlEnvironment) {
+        String currentXmlLang = getXmlLang(parser);
+        if (currentXmlLang != null) {
+            return currentXmlLang;
+        }
+        return xmlEnvironment.getEffectiveLanguage();
     }
 
     public static String getXmlLang(XmlPullParser parser) {

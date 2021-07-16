@@ -43,7 +43,7 @@ public class Agent {
     public static Collection<String> getWorkgroups(Jid serviceJID, Jid agentJID, XMPPConnection connection) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         AgentWorkgroups request = new AgentWorkgroups(agentJID);
         request.setTo(serviceJID);
-        AgentWorkgroups response = connection.createStanzaCollectorAndSend(request).nextResultOrThrow();
+        AgentWorkgroups response = connection.sendIqRequestAndWaitForResponse(request);
         return response.getWorkgroups();
     }
 
@@ -68,17 +68,17 @@ public class Agent {
      * Return the agents name.
      *
      * @return - the agents name.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public String getName() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         AgentInfo agentInfo = new AgentInfo();
         agentInfo.setType(IQ.Type.get);
         agentInfo.setTo(workgroupJID);
         agentInfo.setFrom(getUser());
-        AgentInfo response = connection.createStanzaCollectorAndSend(agentInfo).nextResultOrThrow();
+        AgentInfo response = connection.sendIqRequestAndWaitForResponse(agentInfo);
         return response.getName();
     }
 
@@ -89,10 +89,10 @@ public class Agent {
      * error code.
      *
      * @param newName the new name of the agent.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void setName(String newName) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         AgentInfo agentInfo = new AgentInfo();
@@ -100,6 +100,6 @@ public class Agent {
         agentInfo.setTo(workgroupJID);
         agentInfo.setFrom(getUser());
         agentInfo.setName(newName);
-        connection.createStanzaCollectorAndSend(agentInfo).nextResultOrThrow();
+        connection.sendIqRequestAndWaitForResponse(agentInfo);
     }
 }

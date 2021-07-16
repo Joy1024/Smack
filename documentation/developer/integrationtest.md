@@ -4,8 +4,8 @@ Smack's Integration Test Framework
 Introduction
 ------------
 
-Smack's Integration Test Framwork is used to run a set of tests against a real XMPP service.
-The framework discovers on startup the available tests by reflection.
+Smack's Integration Test Framework is used to run a set of tests against a real XMPP service.
+The framework discovers on start-up the available tests by reflection.
 
 Quickstart
 ----------
@@ -58,24 +58,29 @@ debugger=console
 
 ### Framework properties
 
-| Name                 |                                           |
-|----------------------|-------------------------------------------|
-| service              | XMPP service to run the tests on          |
-| serviceTlsPin        | TLS Pin (used by [java-pinning](https://github.com/Flowdalic/java-pinning))            |
-| securityMode         | Either 'required' or 'disabled'           |
-| replyTimeout         | In milliseconds                           |
-| adminAccountUsername | Username of the XEP-0133 Admin account    |
-| adminAccountPassword | Password of the XEP-0133 Admin account    |
-| accountOneUsername   | Username of the first XMPP account        |
-| accountOnePassword   | Password of the first XMPP account        |
-| accountTwoUsername   | Username of the second XMPP account       |
-| accountTwoPassword   | Password of the second XMPP account       |
-| accountThreeUsername | Username of the third XMPP account        |
-| accountThreePassword | Password of the third XMPP account        |
-| debugger             | 'console' for console debugger, 'enhanced' for the enhanced debugger  |
-| enabledTests         | List of enabled tests                     |
-| disabledTests        | List of disabled tests                    |
-| testPackages         | List of packages with tests               |
+| Name                 | Description                                                                 |
+|----------------------|-----------------------------------------------------------------------------|
+| service              | XMPP service to run the tests on                                            |
+| serviceTlsPin        | TLS Pin (used by [java-pinning](https://github.com/Flowdalic/java-pinning)) |
+| securityMode         | Either 'required' or 'disabled'                                             |
+| replyTimeout         | In milliseconds                                                             |
+| adminAccountUsername | Username of the XEP-0133 Admin account                                      |
+| adminAccountPassword | Password of the XEP-0133 Admin account                                      |
+| accountOneUsername   | Username of the first XMPP account                                          |
+| accountOnePassword   | Password of the first XMPP account                                          |
+| accountTwoUsername   | Username of the second XMPP account                                         |
+| accountTwoPassword   | Password of the second XMPP account                                         |
+| accountThreeUsername | Username of the third XMPP account                                          |
+| accountThreePassword | Password of the third XMPP account                                          |
+| debugger             | 'console' for console debugger, 'enhanced' for the enhanced debugger        |
+| enabledTests         | List of enabled tests                                                       |
+| disabledTests        | List of disabled tests                                                      |
+| defaultConnection    | Nickname of the default connection                                          |
+| enabledConnections   | List of enabled connection's nicknames                                      |
+| disabledConnections  | List of disabled connection's nicknames                                     |
+| testPackages         | List of packages with tests                                                 |
+| verbose              | If `true` set output to verbose                                             |
+| dnsResolver          | One of 'minidns', 'javax' or 'dnsjava'. Defaults to 'minidns'.              |
 
 ### Where to place the properties file
 
@@ -97,7 +102,11 @@ The base class that integration tests need to subclass.
 
 ### `AbstractSmackLowLevelIntegrationTest`
 
-Allows low level integration test, i.e. ever test method will have its on exclusive XMPPTCPConnection instances.
+Allows low level integration test, i.e. every test method will have its own exclusive XMPPTCPConnection instances.
+
+### `AbstractSmackSpecificLowLevelIntegrationTest`
+
+Operates, like `AbstractSmackLowLevelIntegrationTest` on its own `XMPPConnection` instances, but is limited to a particular type of `XMPPConnection`.
 
 ### `IntegrationTestEnvironment`
 
@@ -111,7 +120,7 @@ The methods are supposed to throw an exception if their integration test fails.
 
 ### `TestNotPossibleException`
 
-Can be thrown by test methods or constructors to signal that their test it no possible, e.g. because the service does not support the required feature.
+Can be thrown by test methods or constructors to signal that their test is not possible, e.g. because the service does not support the required feature.
 
 Running the integration tests
 -----------------------------
@@ -121,6 +130,7 @@ Smack's Gradle build system is configured with a special task called `integratio
 ```bash
 $ gradle integrationTest -Dsinttest.service=my.xmppservice.org
 ```
+
 If one of `accountOneUsername`, `accountOnePassword`, `accountTwoUsername` or `accountTwoPassword` is not configured, then the framework will automatically create the accounts on the service. Of course this requires account registration (IBR) to be enabled.
 If the accounts got created automatically by the framework, then they will also be deleted at the end of the test.
 
@@ -151,6 +161,19 @@ Classes that implement low-level integration tests need to sublcass `AbstractSma
 The test methods can declare as many parameters as they need to, but every parameter must be of type `XMPPTCPConnection`.
 The framework will automatically create, register and login the connections.
 After the test is finished, the connections will be unregistered with the XMPP service and terminated.
+
+Debugging Integration Tests
+------------------------------
+
+A test, like any other code, may not be perfect on the first attempt, and you may require more information in order to ascertain quite what's wrong.
+
+### Smack Debugger options
+
+As listed in the main Smack [Debugging](../debugging.md) doc, there are two built-in debuggers that could surface you more information. Using the 'enhanced' debugger config option listed above, you'll get the Smack Debug Window launching when your tests launch, and you'll get a stanza-by-stanza account of what happened on each connection, hopefully enough to diagnose what went wrong.
+
+### Debugging in the IDE
+
+If the output isn't enough, you may need to debug and inspect running code within the IDE. Depending on the IDE, in order to get execution to pause at your breakpoints, you may need to switch your configuration. Instead of running `gradle integrationTest`, instead run the `SmackIntegrationTestFramework` class directly with the same command-line options.
 
 Running your own integration tests
 ----------------------------------

@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2018-2019 Florian Schmaus
+ * Copyright 2018-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,18 +19,18 @@ package org.jivesoftware.smack;
 import java.util.List;
 import java.util.logging.Level;
 
-import org.jivesoftware.smack.tcp.XmppNioTcpConnection;
+import org.jivesoftware.smack.c2s.ModularXmppClientToServerConnection;
 
 import org.igniterealtime.smack.XmppConnectionStressTest;
 import org.igniterealtime.smack.XmppConnectionStressTest.StressTestFailedException.ErrorsWhileSendingOrReceivingException;
 import org.igniterealtime.smack.XmppConnectionStressTest.StressTestFailedException.NotAllMessagesReceivedException;
 import org.igniterealtime.smack.inttest.AbstractSmackLowLevelIntegrationTest;
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 
 public class XmppConnectionIntegrationTest extends AbstractSmackLowLevelIntegrationTest {
 
-    public XmppConnectionIntegrationTest(SmackIntegrationTestEnvironment<?> environment) {
+    public XmppConnectionIntegrationTest(SmackIntegrationTestEnvironment environment) {
         super(environment);
     }
 
@@ -52,12 +52,12 @@ public class XmppConnectionIntegrationTest extends AbstractSmackLowLevelIntegrat
 
         final Level connectionStatsLogLevel = Level.FINE;
         if (LOGGER.isLoggable(connectionStatsLogLevel)) {
-            if (connections.get(0) instanceof XmppNioTcpConnection) {
+            if (connections.get(0) instanceof ModularXmppClientToServerConnection) {
                 for (XMPPConnection connection : connections) {
-                    XmppNioTcpConnection xmppNioTcpConnection = (XmppNioTcpConnection) connection;
-                    XmppNioTcpConnection.Stats stats = xmppNioTcpConnection.getStats();
+                    ModularXmppClientToServerConnection xmppC2sConnection = (ModularXmppClientToServerConnection) connection;
+                    ModularXmppClientToServerConnection.Stats stats = xmppC2sConnection.getStats();
                     LOGGER.log(connectionStatsLogLevel,
-                            "Connections stats for " + xmppNioTcpConnection + ":\n{}",
+                            "Connections stats for " + xmppC2sConnection + ":\n{}",
                             stats);
                 }
             }

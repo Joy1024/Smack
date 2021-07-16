@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2003-2007 Jive Software, 2016-2019 Florian Schmaus.
+ * Copyright 2003-2007 Jive Software, 2016-2021 Florian Schmaus.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,9 +32,9 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import org.jivesoftware.smack.AbstractConnectionListener;
 import org.jivesoftware.smack.AsyncButOrdered;
 import org.jivesoftware.smack.ConnectionCreationListener;
+import org.jivesoftware.smack.ConnectionListener;
 import org.jivesoftware.smack.Manager;
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.SmackException.FeatureNotSupportedException;
@@ -54,9 +53,10 @@ import org.jivesoftware.smack.filter.StanzaTypeFilter;
 import org.jivesoftware.smack.filter.ToMatchesFilter;
 import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.packet.Presence;
+import org.jivesoftware.smack.packet.PresenceBuilder;
 import org.jivesoftware.smack.packet.Stanza;
+import org.jivesoftware.smack.packet.StanzaBuilder;
 import org.jivesoftware.smack.packet.StanzaError.Condition;
 import org.jivesoftware.smack.roster.SubscribeListener.SubscribeAnswer;
 import org.jivesoftware.smack.roster.packet.RosterPacket;
@@ -149,7 +149,17 @@ public final class Roster extends Manager {
     private static int defaultNonRosterPresenceMapMaxSize = INITIAL_DEFAULT_NON_ROSTER_PRESENCE_MAP_SIZE;
 
     private RosterStore rosterStore;
-    private final Map<String, RosterGroup> groups = new ConcurrentHashMap<>();
+
+    /**
+     * The groups of this roster.
+     * <p>
+     * Note that we use {@link ConcurrentHashMap} also as static type of this field, since we use the fact that the same
+     * thread can modify this collection, e.g. remove items, while iterating over it. This is done, for example in
+     * {@link #deleteEntry(Collection, RosterEntry)}. If we do not denote the static type to ConcurrentHashMap, but
+     * {@link Map} instead, then error prone would report a ModifyCollectionInEnhancedForLoop but.
+     * </p>
+     */
+    private final ConcurrentHashMap<String, RosterGroup> groups = new ConcurrentHashMap<>();
 
     /**
      * Concurrent hash map from JID to its roster entry.
@@ -286,29 +296,32 @@ public final class Roster extends Manager {
                     return;
                 }
 
-                Presence response;
+                Presence.Type type;
                 switch (subscribeAnswer) {
                 case ApproveAndAlsoRequestIfRequired:
                     BareJid bareFrom = from.asBareJid();
                     RosterUtil.askForSubscriptionIfRequired(Roster.this, bareFrom);
                     // The fall through is intended.
                 case Approve:
-                    response = new Presence(Presence.Type.subscribed);
+                    type = Presence.Type.subscribed;
                     break;
                 case Deny:
-                    response = new Presence(Presence.Type.unsubscribed);
+                    type = Presence.Type.unsubscribed;
                     break;
                 default:
                     throw new AssertionError();
                 }
 
-                response.setTo(presence.getFrom());
+                Presence response = connection.getStanzaFactory().buildPresenceStanza()
+                        .ofType(type)
+                        .to(presence.getFrom())
+                        .build();
                 connection.sendStanza(response);
             }
         }, PresenceTypeFilter.SUBSCRIBE);
 
         // Listen for connection events
-        connection.addConnectionListener(new AbstractConnectionListener() {
+        connection.addConnectionListener(new ConnectionListener() {
 
             @Override
             public void authenticated(XMPPConnection connection, boolean resumed) {
@@ -437,8 +450,8 @@ public final class Roster extends Manager {
      * which means the method will return immediately, and the roster will be
      * reloaded at a later point when the server responds to the reload request.
      * @throws NotLoggedInException If not logged in.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void reload() throws NotLoggedInException, NotConnectedException, InterruptedException {
         final XMPPConnection connection = getAuthenticatedConnectionOrThrow();
@@ -474,9 +487,9 @@ public final class Roster extends Manager {
     /**
      * Reload the roster and block until it is reloaded.
      *
-     * @throws NotLoggedInException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotLoggedInException if the XMPP connection is not authenticated.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      * @since 4.1
      */
     public void reloadAndWait() throws NotLoggedInException, NotConnectedException, InterruptedException {
@@ -487,7 +500,7 @@ public final class Roster extends Manager {
     /**
      * Set the roster store, may cause a roster reload.
      *
-     * @param rosterStore
+     * @param rosterStore TODO javadoc me please
      * @return true if the roster reload was initiated, false otherwise.
      * @since 4.1
      */
@@ -503,7 +516,7 @@ public final class Roster extends Manager {
         return true;
     }
 
-    protected boolean waitUntilLoaded() throws InterruptedException {
+    boolean waitUntilLoaded() throws InterruptedException {
         long waitTime = connection().getReplyTimeout();
         long start = System.currentTimeMillis();
         while (!isLoaded()) {
@@ -637,13 +650,13 @@ public final class Roster extends Manager {
      *
      * @param user   the user. (e.g. johndoe@jabber.org)
      * @param name   the nickname of the user.
-     * @param groups the list of group names the entry will belong to, or <tt>null</tt> if the
+     * @param groups the list of group names the entry will belong to, or <code>null</code> if the
      *               the roster entry won't belong to a group.
      * @throws NoResponseException if there was no response from the server.
      * @throws XMPPErrorException if an XMPP exception occurs.
      * @throws NotLoggedInException If not logged in.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      * @deprecated use {@link #createItemAndRequestSubscription(BareJid, String, String[])} instead.
      */
     // TODO: Remove in Smack 4.5.
@@ -662,13 +675,13 @@ public final class Roster extends Manager {
      *
      * @param jid the XMPP address of the contact (e.g. johndoe@jabber.org)
      * @param name the nickname of the user.
-     * @param groups the list of group names the entry will belong to, or <tt>null</tt> if the the roster entry won't
+     * @param groups the list of group names the entry will belong to, or <code>null</code> if the the roster entry won't
      *        belong to a group.
      * @throws NoResponseException if there was no response from the server.
      * @throws XMPPErrorException if an XMPP exception occurs.
      * @throws NotLoggedInException If not logged in.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      * @since 4.4.0
      */
     public void createItem(BareJid jid, String name, String[] groups) throws NotLoggedInException, NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -686,7 +699,7 @@ public final class Roster extends Manager {
             }
         }
         rosterPacket.addRosterItem(item);
-        connection.createStanzaCollectorAndSend(rosterPacket).nextResultOrThrow();
+        connection.sendIqRequestAndWaitForResponse(rosterPacket);
     }
 
     /**
@@ -695,13 +708,13 @@ public final class Roster extends Manager {
      *
      * @param jid the XMPP address of the contact (e.g. johndoe@jabber.org)
      * @param name   the nickname of the user.
-     * @param groups the list of group names the entry will belong to, or <tt>null</tt> if the
+     * @param groups the list of group names the entry will belong to, or <code>null</code> if the
      *               the roster entry won't belong to a group.
      * @throws NoResponseException if there was no response from the server.
      * @throws XMPPErrorException if an XMPP exception occurs.
      * @throws NotLoggedInException If not logged in.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      * @since 4.4.0
      */
     public void createItemAndRequestSubscription(BareJid jid, String name, String[] groups) throws NotLoggedInException, NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -716,13 +729,13 @@ public final class Roster extends Manager {
      *
      * @param user   the user. (e.g. johndoe@jabber.org)
      * @param name   the nickname of the user.
-     * @param groups the list of group names the entry will belong to, or <tt>null</tt> if the
+     * @param groups the list of group names the entry will belong to, or <code>null</code> if the
      *               the roster entry won't belong to a group.
      * @throws NoResponseException if there was no response from the server.
      * @throws XMPPErrorException if an XMPP exception occurs.
      * @throws NotLoggedInException if not logged in.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      * @throws FeatureNotSupportedException if pre-approving is not supported.
      * @since 4.2
      */
@@ -736,8 +749,8 @@ public final class Roster extends Manager {
      *
      * @param user the user. (e.g. johndoe@jabber.org)
      * @throws NotLoggedInException if not logged in.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      * @throws FeatureNotSupportedException if pre-approving is not supported.
      * @since 4.2
      */
@@ -747,8 +760,10 @@ public final class Roster extends Manager {
             throw new FeatureNotSupportedException("Pre-approving");
         }
 
-        Presence presencePacket = new Presence(Presence.Type.subscribed);
-        presencePacket.setTo(user);
+        Presence presencePacket = connection.getStanzaFactory().buildPresenceStanza()
+            .ofType(Presence.Type.subscribed)
+            .to(user)
+            .build();
         connection.sendStanza(presencePacket);
     }
 
@@ -768,8 +783,10 @@ public final class Roster extends Manager {
         final XMPPConnection connection = getAuthenticatedConnectionOrThrow();
 
         // Create a presence subscription packet and send.
-        Presence presencePacket = new Presence(Presence.Type.subscribe);
-        presencePacket.setTo(jid);
+        Presence presencePacket = connection.getStanzaFactory().buildPresenceStanza()
+                .ofType(Presence.Type.subscribe)
+                .to(jid)
+                .build();
         connection.sendStanza(presencePacket);
     }
 
@@ -795,7 +812,7 @@ public final class Roster extends Manager {
      * Remove a subscribe listener. Also restores the previous subscription mode
      * state, if the last listener got removed.
      *
-     * @param subscribeListener
+     * @param subscribeListener TODO javadoc me please
      *            the subscribe listener to remove.
      * @return <code>true</code> if the listener registered and got removed.
      * @since 4.2
@@ -818,8 +835,8 @@ public final class Roster extends Manager {
      * @throws XMPPErrorException if an XMPP error occurs.
      * @throws NotLoggedInException if not logged in.
      * @throws NoResponseException SmackException if there was no response from the server.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public void removeEntry(RosterEntry entry) throws NotLoggedInException, NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         final XMPPConnection connection = getAuthenticatedConnectionOrThrow();
@@ -835,7 +852,7 @@ public final class Roster extends Manager {
         // Set the item type as REMOVE so that the server will delete the entry
         item.setItemType(RosterPacket.ItemType.remove);
         packet.addRosterItem(item);
-        connection.createStanzaCollectorAndSend(packet).nextResultOrThrow();
+        connection.sendIqRequestAndWaitForResponse(packet);
     }
 
     /**
@@ -913,11 +930,11 @@ public final class Roster extends Manager {
 
     /**
      * Returns the roster entry associated with the given XMPP address or
-     * <tt>null</tt> if the user is not an entry in the roster.
+     * <code>null</code> if the user is not an entry in the roster.
      *
      * @param jid the XMPP address of the user (eg "jsmith@example.com"). The address could be
      *             in any valid format (e.g. "domain/resource", "user@domain" or "user@domain/resource").
-     * @return the roster entry or <tt>null</tt> if it does not exist.
+     * @return the roster entry or <code>null</code> if it does not exist.
      */
     public RosterEntry getEntry(BareJid jid) {
         if (jid == null) {
@@ -939,7 +956,7 @@ public final class Roster extends Manager {
     }
 
     /**
-     * Returns the roster group with the specified name, or <tt>null</tt> if the
+     * Returns the roster group with the specified name, or <code>null</code> if the
      * group doesn't exist.
      *
      * @param name the name of the group.
@@ -971,7 +988,7 @@ public final class Roster extends Manager {
      * Returns the presence info for a particular user. If the user is offline, or
      * if no presence data is available (such as when you are not subscribed to the
      * user's presence updates), unavailable presence will be returned.
-     * <p>
+     *
      * If the user has several presences (one for each resource), then the presence with
      * highest priority will be returned. If multiple presences have the same priority,
      * the one with the "most available" presence mode will be returned. In order,
@@ -979,8 +996,8 @@ public final class Roster extends Manager {
      * {@link org.jivesoftware.smack.packet.Presence.Mode#available available},
      * {@link org.jivesoftware.smack.packet.Presence.Mode#away away},
      * {@link org.jivesoftware.smack.packet.Presence.Mode#xa extended away}, and
-     * {@link org.jivesoftware.smack.packet.Presence.Mode#dnd do not disturb}.<p>
-     * </p>
+     * {@link org.jivesoftware.smack.packet.Presence.Mode#dnd do not disturb}.
+     *
      * <p>
      * Note that presence information is received asynchronously. So, just after logging
      * in to the server, presence values for users in the roster may be unavailable
@@ -1000,8 +1017,7 @@ public final class Roster extends Manager {
     public Presence getPresence(BareJid jid) {
         Map<Resourcepart, Presence> userPresences = getPresencesInternal(jid);
         if (userPresences == null) {
-            Presence presence = new Presence(Presence.Type.unavailable);
-            presence.setFrom(jid);
+            Presence presence = synthesizeUnvailablePresence(jid);
             return presence;
         }
         else {
@@ -1039,16 +1055,15 @@ public final class Roster extends Manager {
             }
             if (presence == null) {
                 if (unavailable != null) {
-                    return unavailable.clone();
+                    return unavailable;
                 }
                 else {
-                    presence = new Presence(Presence.Type.unavailable);
-                    presence.setFrom(jid);
+                    presence = synthesizeUnvailablePresence(jid);
                     return presence;
                 }
             }
             else {
-                return presence.clone();
+                return presence;
             }
         }
     }
@@ -1067,19 +1082,17 @@ public final class Roster extends Manager {
         Resourcepart resource = userWithResource.getResourcepart();
         Map<Resourcepart, Presence> userPresences = getPresencesInternal(key);
         if (userPresences == null) {
-            Presence presence = new Presence(Presence.Type.unavailable);
-            presence.setFrom(userWithResource);
+            Presence presence = synthesizeUnvailablePresence(userWithResource);
             return presence;
         }
         else {
             Presence presence = userPresences.get(resource);
             if (presence == null) {
-                presence = new Presence(Presence.Type.unavailable);
-                presence.setFrom(userWithResource);
+                presence = synthesizeUnvailablePresence(userWithResource);
                 return presence;
             }
             else {
-                return presence.clone();
+                return presence;
             }
         }
     }
@@ -1097,13 +1110,12 @@ public final class Roster extends Manager {
         List<Presence> res;
         if (userPresences == null) {
             // Create an unavailable presence if none was found
-            Presence unavailable = new Presence(Presence.Type.unavailable);
-            unavailable.setFrom(bareJid);
+            Presence unavailable = synthesizeUnvailablePresence(bareJid);
             res = new ArrayList<>(Arrays.asList(unavailable));
         } else {
             res = new ArrayList<>(userPresences.values().size());
             for (Presence presence : userPresences.values()) {
-                res.add(presence.clone());
+                res.add(presence);
             }
         }
         return res;
@@ -1143,8 +1155,7 @@ public final class Roster extends Manager {
         List<Presence> res;
         Map<Resourcepart, Presence> userPresences = getPresencesInternal(jid);
         if (userPresences == null) {
-            Presence presence = new Presence(Presence.Type.unavailable);
-            presence.setFrom(jid);
+            Presence presence = synthesizeUnvailablePresence(jid);
             res = Arrays.asList(presence);
         }
         else {
@@ -1153,7 +1164,7 @@ public final class Roster extends Manager {
             Presence unavailable = null;
             for (Presence presence : userPresences.values()) {
                 if (presence.isAvailable()) {
-                    answer.add(presence.clone());
+                    answer.add(presence);
                 }
                 else {
                     unavailable = presence;
@@ -1163,11 +1174,10 @@ public final class Roster extends Manager {
                 res = answer;
             }
             else if (unavailable != null) {
-                res = Arrays.asList(unavailable.clone());
+                res = Arrays.asList(unavailable);
             }
             else {
-                Presence presence = new Presence(Presence.Type.unavailable);
-                presence.setFrom(jid);
+                Presence presence = synthesizeUnvailablePresence(jid);
                 res = Arrays.asList(presence);
             }
         }
@@ -1184,7 +1194,7 @@ public final class Roster extends Manager {
      * </p>
      * Note that if the roster is not loaded, then this method will always return false.
      *
-     * @param jid
+     * @param jid TODO javadoc me please
      * @return true if the given JID is allowed to see the users presence.
      * @since 4.1
      */
@@ -1266,20 +1276,20 @@ public final class Roster extends Manager {
      * presence sent from the server.
      */
     private void setOfflinePresences() {
-        Presence packetUnavailable;
         outerloop: for (Jid user : presenceMap.keySet()) {
             Map<Resourcepart, Presence> resources = presenceMap.get(user);
             if (resources != null) {
                 for (Resourcepart resource : resources.keySet()) {
-                    packetUnavailable = new Presence(Presence.Type.unavailable);
+                    PresenceBuilder presenceBuilder = StanzaBuilder.buildPresence()
+                            .ofType(Presence.Type.unavailable);
                     EntityBareJid bareUserJid = user.asEntityBareJidIfPossible();
                     if (bareUserJid == null) {
                         LOGGER.warning("Can not transform user JID to bare JID: '" + user + "'");
                         continue;
                     }
-                    packetUnavailable.setFrom(JidCreate.fullFrom(bareUserJid, resource));
+                    presenceBuilder.from(JidCreate.fullFrom(bareUserJid, resource));
                     try {
-                        presencePacketListener.processStanza(packetUnavailable);
+                        presencePacketListener.processStanza(presenceBuilder.build());
                     }
                     catch (NotConnectedException e) {
                         throw new IllegalStateException(
@@ -1414,7 +1424,7 @@ public final class Roster extends Manager {
         move(user, presenceMap, nonRosterPresenceMap);
         deletedEntries.add(user);
 
-        for (Entry<String, RosterGroup> e : groups.entrySet()) {
+        for (Map.Entry<String, RosterGroup> e : groups.entrySet()) {
             RosterGroup group = e.getValue();
             group.removeEntryLocal(entry);
             if (group.getEntryCount() == 0) {
@@ -1469,6 +1479,13 @@ public final class Roster extends Manager {
             default:
                 return false;
         }
+    }
+
+    private static Presence synthesizeUnvailablePresence(Jid from) {
+        return StanzaBuilder.buildPresence()
+                .ofType(Presence.Type.unavailable)
+                .from(from)
+                .build();
     }
 
     /**
@@ -1570,7 +1587,7 @@ public final class Roster extends Manager {
                         else {
                             fullFrom = from.asFullJidIfPossible();
                             // We know that this must be a full JID in this case.
-                            assert (fullFrom != null);
+                            assert fullFrom != null;
                         }
                     }
                     Map<Resourcepart, Presence> userPresences;
@@ -1680,7 +1697,7 @@ public final class Roster extends Manager {
         @Override
         public void onSuccess(IQ packet) {
             final XMPPConnection connection = connection();
-            LOGGER.log(Level.FINE, "RosterResultListener received {}", packet);
+            LOGGER.log(Level.FINE, "RosterResultListener received {0}", packet);
             Collection<Jid> addedEntries = new ArrayList<>();
             Collection<Jid> updatedEntries = new ArrayList<>();
             Collection<Jid> deletedEntries = new ArrayList<>();
@@ -1778,7 +1795,7 @@ public final class Roster extends Manager {
     private final class RosterPushListener extends AbstractIqRequestHandler {
 
         private RosterPushListener() {
-            super(RosterPacket.ELEMENT, RosterPacket.NAMESPACE, Type.set, Mode.sync);
+            super(RosterPacket.ELEMENT, RosterPacket.NAMESPACE, IQ.Type.set, Mode.sync);
         }
 
         @Override
@@ -1871,7 +1888,7 @@ public final class Roster extends Manager {
     /**
      * Set the maximum size of the non-Roster presence map.
      *
-     * @param maximumSize
+     * @param maximumSize TODO javadoc me please
      * @since 4.2
      * @see #setDefaultNonRosterPresenceMapMaxSize(int)
      */

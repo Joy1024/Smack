@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2016 Fernando Ramirez
+ * Copyright 2016 Fernando Ramirez, 2020-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,9 @@
 package org.jivesoftware.smackx.mam.provider;
 
 import java.io.IOException;
+import java.text.ParseException;
 
+import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.packet.XmlEnvironment;
 import org.jivesoftware.smack.parsing.SmackParsingException;
 import org.jivesoftware.smack.provider.ExtensionElementProvider;
@@ -39,19 +41,20 @@ import org.jivesoftware.smackx.mam.element.MamElements.MamResultExtension;
 public class MamResultProvider extends ExtensionElementProvider<MamResultExtension> {
 
     @Override
-    public MamResultExtension parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment) throws XmlPullParserException, IOException, SmackParsingException {
-        Forwarded forwarded = null;
+    public MamResultExtension parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment)
+                    throws XmlPullParserException, IOException, SmackParsingException, ParseException {
+        Forwarded<Message> forwarded = null;
         String queryId = parser.getAttributeValue("", "queryid");
         String id = parser.getAttributeValue("", "id");
 
         outerloop: while (true) {
             final XmlPullParser.Event eventType = parser.next();
-            final String name = parser.getName();
             switch (eventType) {
             case START_ELEMENT:
+                final String name = parser.getName();
                 switch (name) {
                 case Forwarded.ELEMENT:
-                    forwarded = ForwardedProvider.INSTANCE.parse(parser);
+                    forwarded = ForwardedProvider.parseForwardedMessage(parser, xmlEnvironment);
                     break;
                 }
                 break;

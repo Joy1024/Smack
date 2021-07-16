@@ -161,11 +161,7 @@ public class STUNResolver extends TransportResolver {
                         // Parse the port
                         parser.next();
                         parser.next();
-                        try {
-                            serverPort = Integer.parseInt(parser.nextText());
-                        }
-                        catch (Exception e) {
-                        }
+                        serverPort = Integer.parseInt(parser.nextText());
 
                         // If we have a valid hostname and port, add
                         // it to the list.
@@ -252,7 +248,7 @@ public class STUNResolver extends TransportResolver {
      *
      * @return the best STUN server that can be used.
      */
-    private STUNService bestSTUNServer(ArrayList<STUNService> listServers) {
+    private static STUNService bestSTUNServer(ArrayList<STUNService> listServers) {
         if (listServers.isEmpty()) {
             return null;
         } else {
@@ -263,8 +259,8 @@ public class STUNResolver extends TransportResolver {
 
     /**
      * Resolve the IP and obtain a valid transport method.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     @Override
     public synchronized void resolve(JingleSession session) throws XMPPException, NotConnectedException, InterruptedException {
@@ -288,7 +284,7 @@ public class STUNResolver extends TransportResolver {
     /**
      * Initialize the resolver.
      *
-     * @throws XMPPException
+     * @throws XMPPException if an XMPP protocol error was received.
      */
     @Override
     public void initialize() throws XMPPException {

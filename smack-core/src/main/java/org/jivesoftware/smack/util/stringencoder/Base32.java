@@ -45,7 +45,7 @@ public class Base32 {
         }
 
     };
-    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ2345678";
+    private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
     public static StringEncoder<String> getStringEncoder() {
         return base32Stringencoder;
@@ -104,6 +104,8 @@ public class Base32 {
                 for (int j = 0; j < blocklen; j++)
                     ds.writeByte((byte) (t[j] & 0xFF));
             } catch (IOException e) {
+                // This should not happen.
+                throw new AssertionError(e);
             }
         }
 

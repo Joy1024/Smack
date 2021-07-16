@@ -1,6 +1,6 @@
 /**
  *
- * Copyright © 2014-2017 Florian Schmaus
+ * Copyright © 2014-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,11 +29,16 @@ import android.util.Log;
  * </p>
  * It is possible to not only print the raw sent and received stanzas but also the interpreted
  * packets by Smack. By default interpreted packets won't be printed. To enable this feature
- * just change the <tt>printInterpreted</tt> static variable to <tt>true</tt>.
+ * just change the <code>printInterpreted</code> static variable to <code>true</code>.
  *
  */
 public class AndroidDebugger extends AbstractDebugger {
 
+    /**
+     * Constructs a new Smack debugger for Android.
+     *
+     * @param connection the connection to debug.
+     */
     public AndroidDebugger(XMPPConnection connection) {
         super(connection);
     }

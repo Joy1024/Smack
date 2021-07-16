@@ -32,7 +32,6 @@ import org.jivesoftware.smack.filter.StanzaTypeFilter;
 import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
 import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.packet.Presence;
 import org.jivesoftware.smack.packet.Stanza;
@@ -76,7 +75,6 @@ import org.jxmpp.jid.Jid;
  *
  * To get the uptime of a host, you simple send the LastActivity stanza to it,
  * as in the following code example:
- * <p>
  *
  * <pre>
  * LastActivity activity = LastActivity.getLastActivity(con, &quot;jabber.org&quot;);
@@ -98,7 +96,7 @@ public final class LastActivityManager extends Manager {
     /**
      * Enable or disable Last Activity for new XMPPConnections.
      *
-     * @param enabledPerDefault
+     * @param enabledPerDefault TODO javadoc me please
      */
     public static void setEnabledPerDefault(boolean enabledPerDefault) {
         LastActivityManager.enabledPerDefault = enabledPerDefault;
@@ -127,7 +125,7 @@ public final class LastActivityManager extends Manager {
     /**
      * Creates a last activity manager to response last activity requests.
      *
-     * @param connection
+     * @param connection TODO javadoc me please
      *            The XMPPConnection that the last activity requests will use.
      */
     private LastActivityManager(XMPPConnection connection) {
@@ -165,7 +163,7 @@ public final class LastActivityManager extends Manager {
 
         // Register a listener for a last activity query
         connection.registerIQRequestHandler(new AbstractIqRequestHandler(LastActivity.ELEMENT, LastActivity.NAMESPACE,
-                        Type.get, Mode.async) {
+                        IQ.Type.get, Mode.async) {
             @Override
             public IQ handleIQRequest(IQ iqRequest) {
                 if (!enabled)
@@ -214,7 +212,7 @@ public final class LastActivityManager extends Manager {
     private long getIdleTime() {
         long lms = lastMessageSent;
         long now = System.currentTimeMillis();
-        return ((now - lms) / 1000);
+        return (now - lms) / 1000;
     }
 
     /**
@@ -226,19 +224,19 @@ public final class LastActivityManager extends Manager {
      * Moreover, when the jid is a server or component (e.g., a JID of the form
      * 'host') the last activity is the uptime.
      *
-     * @param jid
+     * @param jid TODO javadoc me please
      *            the JID of the user.
      * @return the LastActivity stanza of the jid.
-     * @throws XMPPErrorException
-     *             thrown if a server error has occured.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     *             thrown if a server error has occurred.
      * @throws NoResponseException if there was no response from the server.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public LastActivity getLastActivity(Jid jid) throws NoResponseException, XMPPErrorException,
                     NotConnectedException, InterruptedException {
         LastActivity activity = new LastActivity(jid);
-        return (LastActivity) connection().createStanzaCollectorAndSend(activity).nextResultOrThrow();
+        return (LastActivity) connection().sendIqRequestAndWaitForResponse(activity);
     }
 
     /**
@@ -246,10 +244,10 @@ public final class LastActivityManager extends Manager {
      *
      * @param jid a JID to be tested for Last Activity support
      * @return true if Last Activity is supported, otherwise false
-     * @throws NotConnectedException
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean isLastActivitySupported(Jid jid) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
         return ServiceDiscoveryManager.getInstanceFor(connection()).supportsFeature(jid, LastActivity.NAMESPACE);

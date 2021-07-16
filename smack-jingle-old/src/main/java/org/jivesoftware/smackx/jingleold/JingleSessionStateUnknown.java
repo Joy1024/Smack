@@ -98,11 +98,11 @@ public class JingleSessionStateUnknown extends JingleSessionState {
     /**
      * In the UNKNOWN state we received a <session-initiate> action.
      * This method processes that action.
-     * @throws SmackException
-     * @throws InterruptedException
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
-
-    private IQ receiveSessionInitiateAction(JingleSession session, Jingle inJingle) throws SmackException, InterruptedException {
+    private static IQ receiveSessionInitiateAction(JingleSession session, Jingle inJingle)
+                    throws SmackException, InterruptedException {
 
         IQ response;
         boolean shouldAck = true;
@@ -208,7 +208,7 @@ public class JingleSessionStateUnknown extends JingleSessionState {
     /**
      * Receive and process the <session-terminate> action.
      */
-    private IQ receiveSessionTerminateAction(JingleSession session, Jingle jingle) {
+    private static IQ receiveSessionTerminateAction(JingleSession session, Jingle jingle) {
 
         // According to XEP-166 the only thing we can do is ack.
         IQ response = session.createAck(jingle);

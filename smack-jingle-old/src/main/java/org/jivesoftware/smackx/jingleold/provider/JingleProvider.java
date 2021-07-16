@@ -45,9 +45,9 @@ public class JingleProvider extends IQProvider<Jingle> {
 
     /**
      * Parse a iq/jingle element.
-     * @throws XmlPullParserException
-     * @throws IOException
-     * @throws SmackParsingException
+     * @throws XmlPullParserException if an error in the XML parser occurred.
+     * @throws IOException if an I/O error occurred.
+     * @throws SmackParsingException if the Smack parser (provider) encountered invalid input.
      */
     @Override
     public Jingle parse(XmlPullParser parser, int intialDepth, XmlEnvironment xmlEnvironment) throws IOException, XmlPullParserException, SmackParsingException {
@@ -84,10 +84,10 @@ public class JingleProvider extends IQProvider<Jingle> {
         // Start processing sub-elements
         while (!done) {
             eventType = parser.next();
-            elementName = parser.getName();
-            namespace = parser.getNamespace();
 
             if (eventType == XmlPullParser.Event.START_ELEMENT) {
+                elementName = parser.getName();
+                namespace = parser.getNamespace();
 
                 // Parse some well know subelements, depending on the namespaces
                 // and element names...
@@ -120,7 +120,7 @@ public class JingleProvider extends IQProvider<Jingle> {
                 }
 
             } else if (eventType == XmlPullParser.Event.END_ELEMENT) {
-                if (parser.getName().equals(Jingle.getElementName())) {
+                if (parser.getName().equals(Jingle.NODENAME)) {
                     done = true;
                 }
             }

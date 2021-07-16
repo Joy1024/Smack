@@ -20,12 +20,12 @@ import java.io.IOException;
 
 import org.jivesoftware.smack.packet.XmlEnvironment;
 import org.jivesoftware.smack.provider.IQProvider;
-import org.jivesoftware.smack.util.ParserUtils;
+import org.jivesoftware.smack.util.Pair;
 import org.jivesoftware.smack.xml.XmlPullParser;
 import org.jivesoftware.smack.xml.XmlPullParserException;
 
 import org.jivesoftware.smackx.bob.BoBData;
-import org.jivesoftware.smackx.bob.BoBHash;
+import org.jivesoftware.smackx.bob.ContentId;
 import org.jivesoftware.smackx.bob.element.BoBIQ;
 
 /**
@@ -39,22 +39,10 @@ public class BoBIQProvider extends IQProvider<BoBIQ> {
 
     @Override
     public BoBIQ parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment) throws XmlPullParserException, IOException {
-        String cid = parser.getAttributeValue("", "cid");
-        BoBHash bobHash = BoBHash.fromCid(cid);
+        Pair<ContentId, BoBData> parserResult = BoBProviderUtil.parseContentIdAndBobData(parser, initialDepth,
+                        xmlEnvironment);
 
-        String dataType = parser.getAttributeValue("", "type");
-        int maxAge = ParserUtils.getIntegerAttribute(parser, "max-age", -1);
-
-        String base64EncodedData = parser.nextText();
-
-        BoBData bobData;
-        if (dataType != null) {
-            bobData = new BoBData(dataType, base64EncodedData, maxAge);
-        } else {
-            bobData = null;
-        }
-
-        return new BoBIQ(bobHash, bobData);
+        return new BoBIQ(parserResult.getFirst(), parserResult.getSecond());
     }
 
 }

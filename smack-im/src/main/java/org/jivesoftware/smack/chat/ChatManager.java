@@ -39,7 +39,6 @@ import org.jivesoftware.smack.filter.OrFilter;
 import org.jivesoftware.smack.filter.StanzaFilter;
 import org.jivesoftware.smack.filter.ThreadFilter;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Message.Type;
 import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.util.StringUtils;
 
@@ -103,14 +102,14 @@ public final class ChatManager extends Manager{
          * Will attempt to match on the JID in the from field, and then attempt the base JID if no match was found.
          * This is the most lenient matching.
          */
-        BARE_JID;
+        BARE_JID,
     }
 
     private final StanzaFilter packetFilter = new OrFilter(MessageTypeFilter.CHAT, new FlexibleStanzaTypeFilter<Message>() {
 
         @Override
         protected boolean acceptSpecific(Message message) {
-            return normalIncluded ? message.getType() == Type.normal : false;
+            return normalIncluded ? message.getType() == Message.Type.normal : false;
         }
 
     });
@@ -279,7 +278,7 @@ public final class ChatManager extends Manager{
      * Creates a new {@link Chat} based on the message. May returns null if no chat could be
      * created, e.g. because the message comes without from.
      *
-     * @param message
+     * @param message TODO javadoc me please
      * @return a Chat or null if none can be created
      */
     private Chat createChat(Message message) {

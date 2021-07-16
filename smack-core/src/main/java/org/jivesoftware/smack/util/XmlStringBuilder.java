@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2014-2019 Florian Schmaus
+ * Copyright 2014-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,14 +18,14 @@ package org.jivesoftware.smack.util;
 
 import java.io.IOException;
 import java.io.Writer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
-import java.util.Iterator;
+import java.util.List;
 
 import org.jivesoftware.smack.packet.Element;
-import org.jivesoftware.smack.packet.ExtensionElement;
-import org.jivesoftware.smack.packet.FullyQualifiedElement;
 import org.jivesoftware.smack.packet.NamedElement;
+import org.jivesoftware.smack.packet.XmlElement;
 import org.jivesoftware.smack.packet.XmlEnvironment;
 
 import org.jxmpp.util.XmppDateTime;
@@ -38,17 +38,12 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
     private final XmlEnvironment effectiveXmlEnvironment;
 
     public XmlStringBuilder() {
-        this((XmlEnvironment) null);
-    }
-
-    public XmlStringBuilder(XmlEnvironment effectiveXmlEnvironment) {
         sb = new LazyStringBuilder();
-        this.effectiveXmlEnvironment = effectiveXmlEnvironment;
+        effectiveXmlEnvironment = null;
     }
 
-    public XmlStringBuilder(ExtensionElement pe) {
-        this();
-        prelude(pe);
+    public XmlStringBuilder(XmlElement pe) {
+        this(pe, null);
     }
 
     public XmlStringBuilder(NamedElement e) {
@@ -56,9 +51,33 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
         halfOpenElement(e.getElementName());
     }
 
-    public XmlStringBuilder(FullyQualifiedElement ee, XmlEnvironment enclosingXmlEnvironment) {
-        this(enclosingXmlEnvironment);
-        prelude(ee);
+    public XmlStringBuilder(XmlElement element, XmlEnvironment enclosingXmlEnvironment) {
+        sb = new LazyStringBuilder();
+        halfOpenElement(element);
+
+        String xmlNs = element.getNamespace();
+        String xmlLang = element.getLanguage();
+        if (enclosingXmlEnvironment == null) {
+            xmlnsAttribute(xmlNs);
+            xmllangAttribute(xmlLang);
+        } else {
+            if (!enclosingXmlEnvironment.effectiveNamespaceEquals(xmlNs)) {
+                xmlnsAttribute(xmlNs);
+            }
+            if (!enclosingXmlEnvironment.effectiveLanguageEquals(xmlLang)) {
+                xmllangAttribute(xmlLang);
+            }
+        }
+
+        effectiveXmlEnvironment = XmlEnvironment.builder()
+                .withNamespace(xmlNs)
+                .withLanguage(xmlLang)
+                .withNext(enclosingXmlEnvironment)
+                .build();
+    }
+
+    public XmlEnvironment getXmlEnvironment() {
+        return effectiveXmlEnvironment;
     }
 
     public XmlStringBuilder escapedElement(String name, String escapedContent) {
@@ -72,8 +91,8 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
     /**
      * Add a new element to this builder.
      *
-     * @param name
-     * @param content
+     * @param name TODO javadoc me please
+     * @param content TODO javadoc me please
      * @return the XmlStringBuilder
      */
     public XmlStringBuilder element(String name, String content) {
@@ -102,8 +121,8 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
    /**
     * Add a new element to this builder.
     *
-    * @param name
-    * @param content
+    * @param name TODO javadoc me please
+    * @param content TODO javadoc me please
     * @return the XmlStringBuilder
     */
    public XmlStringBuilder element(String name, CharSequence content) {
@@ -112,10 +131,19 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
 
     public XmlStringBuilder element(String name, Enum<?> content) {
         assert content != null;
-        element(name, content.name());
+        element(name, content.toString());
         return this;
     }
 
+    /**
+     * Deprecated.
+     *
+     * @param element deprecated.
+     * @return deprecated.
+     * @deprecated use {@link #append(Element)} instead.
+     */
+    @Deprecated
+    // TODO: Remove in Smack 4.5.
     public XmlStringBuilder element(Element element) {
         assert element != null;
         return append(element.toXML());
@@ -153,7 +181,7 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
 
     public XmlStringBuilder optElement(Element element) {
         if (element != null) {
-            append(element.toXML());
+            append(element);
         }
         return this;
     }
@@ -180,7 +208,7 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
     }
 
     public XmlStringBuilder halfOpenElement(String name) {
-        assert (StringUtils.isNotEmpty(name));
+        assert StringUtils.isNotEmpty(name);
         sb.append('<').append(name);
         return this;
     }
@@ -221,21 +249,10 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
     }
 
     /**
-     * Add a right angle bracket '&gt;'.
-     *
-     * @return a reference to this object
-     * @deprecated use {@link #rightAngleBracket()} instead
-     */
-    @Deprecated
-    public XmlStringBuilder rightAngelBracket() {
-        return rightAngleBracket();
-    }
-
-    /**
      * Does nothing if value is null.
      *
-     * @param name
-     * @param value
+     * @param name TODO javadoc me please
+     * @param value TODO javadoc me please
      * @return the XmlStringBuilder
      */
     public XmlStringBuilder attribute(String name, String value) {
@@ -269,7 +286,17 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
 
     public XmlStringBuilder attribute(String name, Enum<?> value) {
         assert value != null;
+        // TODO: Should use toString() instead of name().
         attribute(name, value.name());
+        return this;
+    }
+
+    public <E extends Enum<?>> XmlStringBuilder attribute(String name, E value, E implicitDefault) {
+        if (value == null || value == implicitDefault) {
+            return this;
+        }
+
+        attribute(name, value.toString());
         return this;
     }
 
@@ -335,10 +362,24 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
     }
 
     /**
+     * Same as {@link #optAttribute(String, CharSequence)}, but with a different method name. This method can be used if
+     * the provided attribute value argument type causes ambiguity in method overloading. For example if the type is a
+     * subclass of Number and CharSequence.
+     *
+     * @param name the name of the attribute.
+     * @param value the value of the attribute.
+     * @return a reference to this object.
+     * @since 4.5
+     */
+    public XmlStringBuilder optAttributeCs(String name, CharSequence value) {
+        return optAttribute(name, value);
+    }
+
+    /**
      * Add the given attribute if {@code value => 0}.
      *
-     * @param name
-     * @param value
+     * @param name TODO javadoc me please
+     * @param value TODO javadoc me please
      * @return a reference to this object
      */
     public XmlStringBuilder optIntAttribute(String name, int value) {
@@ -349,10 +390,26 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
     }
 
     /**
+     * If the provided Integer argument is not null, then add a new XML attribute with the given name and the Integer as
+     * value.
+     *
+     * @param name the XML attribute name.
+     * @param value the optional integer to use as the attribute's value.
+     * @return a reference to this object.
+     * @since 4.4.1
+     */
+    public XmlStringBuilder optIntAttribute(String name, Integer value) {
+        if (value != null) {
+            attribute(name, value.toString());
+        }
+        return this;
+    }
+
+    /**
      * Add the given attribute if value not null and {@code value => 0}.
      *
-     * @param name
-     * @param value
+     * @param name TODO javadoc me please
+     * @param value TODO javadoc me please
      * @return a reference to this object
      */
     public XmlStringBuilder optLongAttribute(String name, Long value) {
@@ -417,6 +474,7 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
     }
 
     public XmlStringBuilder xmllangAttribute(String value) {
+        // TODO: This should probably be attribute(), not optAttribute().
         optAttribute("xml:lang", value);
         return this;
     }
@@ -425,6 +483,13 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
         if (!StringUtils.isNullOrEmpty(lang)) {
             xmllangAttribute(lang);
         }
+        return this;
+    }
+
+    public XmlStringBuilder text(CharSequence text) {
+        assert text != null;
+        CharSequence escapedText = StringUtils.escapeForXmlText(text);
+        sb.append(escapedText);
         return this;
     }
 
@@ -451,20 +516,13 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
         return escape(text.toString());
     }
 
-    public XmlStringBuilder prelude(FullyQualifiedElement pe) {
+    protected XmlStringBuilder prelude(XmlElement pe) {
         return prelude(pe.getElementName(), pe.getNamespace());
     }
 
-    public XmlStringBuilder prelude(String elementName, String namespace) {
+    protected XmlStringBuilder prelude(String elementName, String namespace) {
         halfOpenElement(elementName);
         xmlnsAttribute(namespace);
-        return this;
-    }
-
-    public XmlStringBuilder optAppend(CharSequence csq) {
-        if (csq != null) {
-            append(csq);
-        }
         return this;
     }
 
@@ -475,19 +533,36 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
         return this;
     }
 
+    public XmlStringBuilder optAppend(Collection<? extends Element> elements) {
+        if (elements != null) {
+            append(elements);
+        }
+        return this;
+    }
+
+    public XmlStringBuilder optTextChild(CharSequence sqc, NamedElement parentElement) {
+        if (sqc == null) {
+            return closeEmptyElement();
+        }
+        rightAngleBracket();
+        escape(sqc);
+        closeElement(parentElement);
+        return this;
+    }
+
     public XmlStringBuilder append(XmlStringBuilder xsb) {
         assert xsb != null;
         sb.append(xsb.sb);
         return this;
     }
 
-    public XmlStringBuilder append(Collection<? extends Element> elements) {
-        return append(elements, null);
+    public XmlStringBuilder append(Element element) {
+        return append(element.toXML(effectiveXmlEnvironment));
     }
 
-    public XmlStringBuilder append(Collection<? extends Element> elements, XmlEnvironment enclosingXmlEnvironment) {
+    public XmlStringBuilder append(Collection<? extends Element> elements) {
         for (Element element : elements) {
-            append(element.toXML(enclosingXmlEnvironment));
+            append(element);
         }
         return this;
     }
@@ -571,57 +646,73 @@ public class XmlStringBuilder implements Appendable, CharSequence, Element {
         return toString().hashCode();
     }
 
+    private static final class WrappedIoException extends RuntimeException {
+
+        private static final long serialVersionUID = 1L;
+
+        private final IOException wrappedIoException;
+
+        private WrappedIoException(IOException wrappedIoException) {
+            this.wrappedIoException = wrappedIoException;
+        }
+    }
+
     /**
      * Write the contents of this <code>XmlStringBuilder</code> to a {@link Writer}. This will write
      * the single parts one-by-one, avoiding allocation of a big continuous memory block holding the
      * XmlStringBuilder contents.
      *
-     * @param writer
-     * @throws IOException
+     * @param writer TODO javadoc me please
+     * @param enclosingXmlEnvironment the enclosing XML environment.
+     * @throws IOException if an I/O error occurred.
      */
-    public void write(Writer writer, String enclosingNamespace) throws IOException {
-        for (CharSequence csq : sb.getAsList()) {
-            if (csq instanceof XmlStringBuilder) {
-                ((XmlStringBuilder) csq).write(writer, enclosingNamespace);
-            }
-            else if (csq instanceof XmlNsAttribute) {
-                XmlNsAttribute xmlNsAttribute = (XmlNsAttribute) csq;
-                if (!xmlNsAttribute.value.equals(enclosingNamespace)) {
-                    writer.write(xmlNsAttribute.toString());
-                    enclosingNamespace = xmlNsAttribute.value;
+    public void write(Writer writer, XmlEnvironment enclosingXmlEnvironment) throws IOException {
+        try {
+            appendXmlTo(csq -> {
+                try {
+                    writer.append(csq);
+                } catch (IOException e) {
+                    throw new WrappedIoException(e);
                 }
-            }
-            else {
-                writer.write(csq.toString());
-            }
+            }, enclosingXmlEnvironment);
+        } catch (WrappedIoException e) {
+            throw e.wrappedIoException;
         }
     }
 
-    public Iterator<CharSequence> getCharSequenceIterator() {
-        return sb.getAsList().iterator();
-    }
+    public List<CharSequence> toList(XmlEnvironment enclosingXmlEnvironment) {
+        List<CharSequence> res = new ArrayList<>(sb.getAsList().size());
 
-    @Override
-    public CharSequence toXML(XmlEnvironment enclosingXmlEnvironment) {
-        StringBuilder res = new StringBuilder();
-        appendXmlTo(res, enclosingXmlEnvironment);
+        appendXmlTo(csq -> res.add(csq), enclosingXmlEnvironment);
+
         return res;
     }
 
-    private void appendXmlTo(StringBuilder res, XmlEnvironment enclosingXmlEnvironment) {
+    @Override
+    public StringBuilder toXML(XmlEnvironment enclosingXmlEnvironment) {
+        // This is only the potential length, since the actual length depends on the given XmlEnvironment.
+        int potentialLength = length();
+        StringBuilder res = new StringBuilder(potentialLength);
+
+        appendXmlTo(csq -> res.append(csq), enclosingXmlEnvironment);
+
+        return res;
+    }
+
+    private void appendXmlTo(Consumer<CharSequence> charSequenceSink, XmlEnvironment enclosingXmlEnvironment) {
         for (CharSequence csq : sb.getAsList()) {
             if (csq instanceof XmlStringBuilder) {
-                ((XmlStringBuilder) csq).appendXmlTo(res, enclosingXmlEnvironment);
+                ((XmlStringBuilder) csq).appendXmlTo(charSequenceSink, enclosingXmlEnvironment);
             }
             else if (csq instanceof XmlNsAttribute) {
                 XmlNsAttribute xmlNsAttribute = (XmlNsAttribute) csq;
                 if (!xmlNsAttribute.value.equals(enclosingXmlEnvironment.getEffectiveNamespace())) {
-                    sb.append(xmlNsAttribute);
+                    charSequenceSink.accept(xmlNsAttribute);
                     enclosingXmlEnvironment = new XmlEnvironment(xmlNsAttribute.value);
                 }
             }
             else {
-                res.append(csq);
+                charSequenceSink.accept(csq);
             }
         }
     }

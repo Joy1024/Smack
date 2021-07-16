@@ -39,7 +39,7 @@ public interface ParsingExceptionCallback {
      * Called when parsing a stanza caused an exception.
      *
      * @param stanzaData the raw stanza data that caused the exception
-     * @throws IOException
+     * @throws IOException if an I/O error occurred.
      */
     void handleUnparsableStanza(UnparseableStanza stanzaData) throws IOException;
 

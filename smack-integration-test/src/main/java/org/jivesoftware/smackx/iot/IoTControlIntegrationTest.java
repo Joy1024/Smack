@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2016-2019 Florian Schmaus
+ * Copyright 2016-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
  */
 package org.jivesoftware.smackx.iot;
 
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.util.Collection;
 import java.util.concurrent.TimeoutException;
@@ -31,8 +31,8 @@ import org.jivesoftware.smackx.iot.control.element.SetBoolData;
 import org.jivesoftware.smackx.iot.control.element.SetData;
 
 import org.igniterealtime.smack.inttest.AbstractSmackIntegrationTest;
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.util.IntegrationTestRosterUtil;
 import org.igniterealtime.smack.inttest.util.SimpleResultSyncPoint;
 import org.jxmpp.jid.Jid;
@@ -43,7 +43,7 @@ public class IoTControlIntegrationTest extends AbstractSmackIntegrationTest {
 
     private final IoTControlManager IoTControlManagerTwo;
 
-    public IoTControlIntegrationTest(SmackIntegrationTestEnvironment<?> environment) {
+    public IoTControlIntegrationTest(SmackIntegrationTestEnvironment environment) {
         super(environment);
         IoTControlManagerOne = IoTControlManager.getInstanceFor(conOne);
         IoTControlManagerTwo = IoTControlManager.getInstanceFor(conTwo);
@@ -52,8 +52,8 @@ public class IoTControlIntegrationTest extends AbstractSmackIntegrationTest {
     /**
      * Connection one provides a thing, which is controlled by connection two.
      *
-     * @throws Exception
-     * @throws TimeoutException
+     * @throws Exception if an exception occurs.
+     * @throws TimeoutException if there was a timeout.
      */
     @SmackIntegrationTest
     // @SmackSerialIntegrationTest

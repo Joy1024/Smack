@@ -37,7 +37,6 @@ import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
 import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.packet.Stanza;
 import org.jivesoftware.smack.packet.StanzaError;
 import org.jivesoftware.smack.util.ExceptionCallback;
@@ -79,7 +78,7 @@ public final class PingManager extends Manager {
      * Retrieves a {@link PingManager} for the specified {@link XMPPConnection}, creating one if it doesn't already
      * exist.
      *
-     * @param connection
+     * @param connection TODO javadoc me please
      * The connection the manager is attached to.
      * @return The new or existing manager.
      */
@@ -120,7 +119,7 @@ public final class PingManager extends Manager {
         ServiceDiscoveryManager sdm = ServiceDiscoveryManager.getInstanceFor(connection);
         sdm.addFeature(Ping.NAMESPACE);
 
-        connection.registerIQRequestHandler(new AbstractIqRequestHandler(Ping.ELEMENT, Ping.NAMESPACE, Type.get, Mode.async) {
+        connection.registerIQRequestHandler(new AbstractIqRequestHandler(Ping.ELEMENT, Ping.NAMESPACE, IQ.Type.get, Mode.async) {
             @Override
             public IQ handleIQRequest(IQ iqRequest) {
                 Ping ping = (Ping) iqRequest;
@@ -193,8 +192,9 @@ public final class PingManager extends Manager {
             }
         };
 
-        Ping ping = new Ping(jid);
-        connection().sendIqRequestAsync(ping, pongTimeout)
+        XMPPConnection connection = connection();
+        Ping ping = new Ping(connection, jid);
+        connection.sendIqRequestAsync(ping, pongTimeout)
         .onSuccess(new SuccessCallback<IQ>() {
             @Override
             public void onSuccess(IQ result) {
@@ -223,8 +223,8 @@ public final class PingManager extends Manager {
      * @param pingTimeout The time to wait for a reply in milliseconds
      * @return true if a reply was received from the entity, false otherwise.
      * @throws NoResponseException if there was no response from the jid.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean ping(Jid jid, long pingTimeout) throws NotConnectedException, NoResponseException, InterruptedException {
         final XMPPConnection connection = connection();
@@ -233,7 +233,7 @@ public final class PingManager extends Manager {
         if (!connection.isAuthenticated()) {
             throw new NotConnectedException();
         }
-        Ping ping = new Ping(jid);
+        Ping ping = new Ping(connection, jid);
         try {
             connection.createStanzaCollectorAndSend(ping).nextResultOrThrow(pingTimeout);
         }
@@ -249,9 +249,9 @@ public final class PingManager extends Manager {
      *
      * @param jid The id of the entity the ping is being sent to
      * @return true if a reply was received from the entity, false otherwise.
-     * @throws NotConnectedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
      * @throws NoResponseException if there was no response from the jid.
-     * @throws InterruptedException
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean ping(Jid jid) throws NotConnectedException, NoResponseException, InterruptedException {
         return ping(jid, connection().getReplyTimeout());
@@ -264,8 +264,8 @@ public final class PingManager extends Manager {
      * @return true if it supports ping, false otherwise.
      * @throws XMPPErrorException An XMPP related error occurred during the request
      * @throws NoResponseException if there was no response from the jid.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean isPingSupported(Jid jid) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         return ServiceDiscoveryManager.getInstanceFor(connection()).supportsFeature(jid, Ping.NAMESPACE);
@@ -279,8 +279,8 @@ public final class PingManager extends Manager {
      * {@link #isPingSupported(Jid)} is false.
      *
      * @return true if a reply was received from the server, false otherwise.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean pingMyServer() throws NotConnectedException, InterruptedException {
         return pingMyServer(true);
@@ -295,8 +295,8 @@ public final class PingManager extends Manager {
      *
      * @param notifyListeners Notify the PingFailedListener in case of error if true
      * @return true if the user's server could be pinged.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean pingMyServer(boolean notifyListeners) throws NotConnectedException, InterruptedException {
         return pingMyServer(notifyListeners, connection().getReplyTimeout());
@@ -312,8 +312,8 @@ public final class PingManager extends Manager {
      * @param notifyListeners Notify the PingFailedListener in case of error if true
      * @param pingTimeout The time to wait for a reply in milliseconds
      * @return true if the user's server could be pinged.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean pingMyServer(boolean notifyListeners, long pingTimeout) throws NotConnectedException, InterruptedException {
         boolean res;
@@ -389,7 +389,7 @@ public final class PingManager extends Manager {
             int nextPingIn = pingInterval - delta;
             LOGGER.fine("Scheduling ServerPingTask in " + nextPingIn + " seconds (pingInterval="
                             + pingInterval + ", delta=" + delta + ")");
-            nextAutomaticPing = schedule(pingServerRunnable, nextPingIn, TimeUnit.SECONDS);
+            nextAutomaticPing = schedule(this::pingServerIfNecessary, nextPingIn, TimeUnit.SECONDS);
         }
     }
 
@@ -466,13 +466,4 @@ public final class PingManager extends Manager {
             }
         });
     }
-
-    private final Runnable pingServerRunnable = new Runnable() {
-        @Override
-        public void run() {
-            LOGGER.fine("ServerPingTask run()");
-            pingServerIfNecessary();
-        }
-    };
-
 }

@@ -65,14 +65,6 @@ public class AgentStatusRequest extends IQ {
         return Collections.unmodifiableSet(agents);
     }
 
-    public String getElementName() {
-        return ELEMENT_NAME;
-    }
-
-    public String getNamespace() {
-        return NAMESPACE;
-    }
-
     @Override
     protected IQChildElementXmlStringBuilder getIQChildElementBuilder(IQChildElementXmlStringBuilder buf) {
         buf.rightAngleBracket();
@@ -139,7 +131,7 @@ public class AgentStatusRequest extends IQ {
             return statusRequest;
         }
 
-        private Item parseAgent(XmlPullParser parser) throws XmlPullParserException, IOException {
+        private static Item parseAgent(XmlPullParser parser) throws XmlPullParserException, IOException {
 
             boolean done = false;
             EntityBareJid jid = ParserUtils.getBareJidAttribute(parser);

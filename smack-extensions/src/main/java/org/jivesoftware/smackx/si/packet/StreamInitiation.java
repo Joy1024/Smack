@@ -18,6 +18,8 @@ package org.jivesoftware.smackx.si.packet;
 
 import java.util.Date;
 
+import javax.xml.namespace.QName;
+
 import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.util.StringUtils;
@@ -146,7 +148,7 @@ public class StreamInitiation extends IQ {
             buf.rightAngleBracket();
 
             // Add the file section if there is one.
-            buf.optAppend(file.toXML());
+            buf.optElement(file);
             break;
         case result:
             buf.rightAngleBracket();
@@ -195,6 +197,10 @@ public class StreamInitiation extends IQ {
      * @author Alexander Wenckus
      */
     public static class File implements ExtensionElement {
+
+        public static final String ELEMENT = "file";
+        public static final String NAMESPACE = "http://jabber.org/protocol/si/profile/file-transfer";
+        public static final QName QNAME = new QName(NAMESPACE, ELEMENT);
 
         private final String name;
 
@@ -318,12 +324,12 @@ public class StreamInitiation extends IQ {
 
         @Override
         public String getElementName() {
-            return "file";
+            return QNAME.getLocalPart();
         }
 
         @Override
         public String getNamespace() {
-            return "http://jabber.org/protocol/si/profile/file-transfer";
+            return QNAME.getNamespaceURI();
         }
 
         @Override
@@ -374,6 +380,8 @@ public class StreamInitiation extends IQ {
      */
     public static class Feature implements ExtensionElement {
 
+        public static final QName QNAME = new QName("http://jabber.org/protocol/feature-neg", "feature");
+
         private final DataForm data;
 
         /**
@@ -395,13 +403,13 @@ public class StreamInitiation extends IQ {
         }
 
         @Override
-        public String getNamespace() {
-            return "http://jabber.org/protocol/feature-neg";
+        public String getElementName() {
+            return QNAME.getLocalPart();
         }
 
         @Override
-        public String getElementName() {
-            return "feature";
+        public String getNamespace() {
+            return QNAME.getNamespaceURI();
         }
 
         @Override

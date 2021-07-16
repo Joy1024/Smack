@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2016-2017 Fernando Ramirez, Florian Schmaus
+ * Copyright 2016-2021 Fernando Ramirez, Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@ import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
 import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 import org.jivesoftware.smack.util.SHA1;
 
 import org.jivesoftware.smackx.bob.element.BoBIQ;
@@ -68,7 +67,7 @@ public final class BoBManager extends Manager {
     /**
      * Get the singleton instance of BoBManager.
      *
-     * @param connection
+     * @param connection TODO javadoc me please
      * @return the instance of BoBManager
      */
     public static synchronized BoBManager getInstanceFor(XMPPConnection connection) {
@@ -81,9 +80,9 @@ public final class BoBManager extends Manager {
         return bobManager;
     }
 
-    private static final LruCache<BoBHash, BoBData> BOB_CACHE = new LruCache<>(128);
+    private static final LruCache<ContentId, BoBData> BOB_CACHE = new LruCache<>(128);
 
-    private final Map<BoBHash, BoBInfo> bobs = new ConcurrentHashMap<>();
+    private final Map<ContentId, BoBInfo> bobs = new ConcurrentHashMap<>();
 
     private BoBManager(XMPPConnection connection) {
         super(connection);
@@ -91,20 +90,21 @@ public final class BoBManager extends Manager {
         serviceDiscoveryManager.addFeature(NAMESPACE);
 
         connection.registerIQRequestHandler(
-                new AbstractIqRequestHandler(BoBIQ.ELEMENT, BoBIQ.NAMESPACE, Type.get, Mode.async) {
+                new AbstractIqRequestHandler(BoBIQ.ELEMENT, BoBIQ.NAMESPACE, IQ.Type.get, Mode.async) {
                     @Override
                     public IQ handleIQRequest(IQ iqRequest) {
                         BoBIQ bobIQRequest = (BoBIQ) iqRequest;
+                        ContentId contentId = bobIQRequest.getContentId();
 
-                        BoBInfo bobInfo = bobs.get(bobIQRequest.getBoBHash());
+                        BoBInfo bobInfo = bobs.get(contentId);
                         if (bobInfo == null) {
                             // TODO return item-not-found
                             return null;
                         }
 
                         BoBData bobData = bobInfo.getData();
-                        BoBIQ responseBoBIQ = new BoBIQ(bobIQRequest.getBoBHash(), bobData);
-                        responseBoBIQ.setType(Type.result);
+                        BoBIQ responseBoBIQ = new BoBIQ(contentId, bobData);
+                        responseBoBIQ.setType(IQ.Type.result);
                         responseBoBIQ.setTo(bobIQRequest.getFrom());
                         return responseBoBIQ;
                     }
@@ -115,10 +115,10 @@ public final class BoBManager extends Manager {
      * Returns true if Bits of Binary is supported by the server.
      *
      * @return true if Bits of Binary is supported by the server.
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean isSupportedByServer()
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -128,16 +128,16 @@ public final class BoBManager extends Manager {
     /**
      * Request BoB data.
      *
-     * @param to
-     * @param bobHash
+     * @param to TODO javadoc me please
+     * @param bobHash TODO javadoc me please
      * @return the BoB data
-     * @throws NotLoggedInException
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotLoggedInException if the XMPP connection is not authenticated.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
-    public BoBData requestBoB(Jid to, BoBHash bobHash) throws NotLoggedInException, NoResponseException,
+    public BoBData requestBoB(Jid to, ContentId bobHash) throws NotLoggedInException, NoResponseException,
             XMPPErrorException, NotConnectedException, InterruptedException {
         BoBData bobData = BOB_CACHE.lookup(bobHash);
         if (bobData != null) {
@@ -145,11 +145,11 @@ public final class BoBManager extends Manager {
         }
 
         BoBIQ requestBoBIQ = new BoBIQ(bobHash);
-        requestBoBIQ.setType(Type.get);
+        requestBoBIQ.setType(IQ.Type.get);
         requestBoBIQ.setTo(to);
 
         XMPPConnection connection = getAuthenticatedConnectionOrThrow();
-        BoBIQ responseBoBIQ = connection.createStanzaCollectorAndSend(requestBoBIQ).nextResultOrThrow();
+        BoBIQ responseBoBIQ = connection.sendIqRequestAndWaitForResponse(requestBoBIQ);
 
         bobData = responseBoBIQ.getBoBData();
         BOB_CACHE.put(bobHash, bobData);
@@ -159,9 +159,9 @@ public final class BoBManager extends Manager {
 
     public BoBInfo addBoB(BoBData bobData) {
         // We only support SHA-1 for now.
-        BoBHash bobHash = new BoBHash(SHA1.hex(bobData.getContent()), "sha1");
+        ContentId bobHash = new ContentId(SHA1.hex(bobData.getContent()), "sha1");
 
-        Set<BoBHash> bobHashes = Collections.singleton(bobHash);
+        Set<ContentId> bobHashes = Collections.singleton(bobHash);
         bobHashes = Collections.unmodifiableSet(bobHashes);
 
         BoBInfo bobInfo = new BoBInfo(bobHashes, bobData);
@@ -171,12 +171,12 @@ public final class BoBManager extends Manager {
         return bobInfo;
     }
 
-    public BoBInfo removeBoB(BoBHash bobHash) {
+    public BoBInfo removeBoB(ContentId bobHash) {
         BoBInfo bobInfo = bobs.remove(bobHash);
         if (bobInfo == null) {
             return null;
         }
-        for (BoBHash otherBobHash : bobInfo.getHashes()) {
+        for (ContentId otherBobHash : bobInfo.getHashes()) {
             bobs.remove(otherBobHash);
         }
         return bobInfo;

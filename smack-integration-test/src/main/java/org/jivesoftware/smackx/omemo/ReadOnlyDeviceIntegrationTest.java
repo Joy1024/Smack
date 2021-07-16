@@ -16,28 +16,33 @@
  */
 package org.jivesoftware.smackx.omemo;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.assertFalse;
-import static junit.framework.TestCase.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
 
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.XMPPException;
+
 import org.jivesoftware.smackx.omemo.exceptions.CryptoFailedException;
 import org.jivesoftware.smackx.omemo.exceptions.ReadOnlyDeviceException;
 import org.jivesoftware.smackx.omemo.exceptions.UndecidedOmemoIdentityException;
 
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
 import org.igniterealtime.smack.inttest.TestNotPossibleException;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 
 public class ReadOnlyDeviceIntegrationTest extends AbstractTwoUsersOmemoIntegrationTest {
 
-    public ReadOnlyDeviceIntegrationTest(SmackIntegrationTestEnvironment<?> environment) throws XMPPException.XMPPErrorException, SmackException.NotConnectedException, InterruptedException, SmackException.NoResponseException, TestNotPossibleException {
+    public ReadOnlyDeviceIntegrationTest(SmackIntegrationTestEnvironment environment) throws XMPPException.XMPPErrorException, SmackException.NotConnectedException, InterruptedException, SmackException.NoResponseException, TestNotPossibleException {
         super(environment);
     }
 
     @SmackIntegrationTest
-    public void test() throws InterruptedException, SmackException.NoResponseException, SmackException.NotLoggedInException, SmackException.NotConnectedException, CryptoFailedException, UndecidedOmemoIdentityException {
+    public void test() throws InterruptedException, SmackException.NoResponseException,
+                    SmackException.NotLoggedInException, SmackException.NotConnectedException, CryptoFailedException,
+                    UndecidedOmemoIdentityException, IOException {
         boolean prevIgnoreReadOnlyConf = OmemoConfiguration.getIgnoreReadOnlyDevices();
         int prevMaxMessageCounter = OmemoConfiguration.getMaxReadOnlyMessageCount();
 

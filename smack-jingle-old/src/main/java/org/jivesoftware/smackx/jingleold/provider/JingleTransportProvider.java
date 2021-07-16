@@ -49,19 +49,18 @@ public abstract class JingleTransportProvider extends ExtensionElementProvider<J
      *
      * @param parser the structure to parse
      * @return a transport element.
-     * @throws IOException
-     * @throws XmlPullParserException
+     * @throws IOException if an I/O error occurred.
+     * @throws XmlPullParserException if an error in the XML parser occurred.
      */
     @Override
     public JingleTransport parse(XmlPullParser parser, int initialDepth, XmlEnvironment xmlEnvironment) throws XmlPullParserException, IOException  {
-        boolean done = false;
         JingleTransport trans = getInstance();
 
-        while (!done) {
+        outerloop: while (true) {
             XmlPullParser.Event eventType = parser.next();
-            String name = parser.getName();
 
             if (eventType == XmlPullParser.Event.START_ELEMENT) {
+                String name = parser.getName();
                 if (name.equals(JingleTransportCandidate.NODENAME)) {
                     JingleTransportCandidate jtc = parseCandidate(parser);
                     if (jtc != null) trans.addCandidate(jtc);
@@ -72,8 +71,8 @@ public abstract class JingleTransportProvider extends ExtensionElementProvider<J
                 }
             }
             else if (eventType == XmlPullParser.Event.END_ELEMENT) {
-                if (name.equals(JingleTransport.NODENAME)) {
-                    done = true;
+                if (parser.getDepth() == initialDepth) {
+                    break outerloop;
                 }
             }
         }
@@ -132,11 +131,7 @@ public abstract class JingleTransportProvider extends ExtensionElementProvider<J
             }
 
             if (generation != null) {
-                try {
-                    mt.setGeneration(Integer.parseInt(generation));
-                }
-                catch (Exception e) {
-                }
+                mt.setGeneration(Integer.parseInt(generation));
             }
 
             if (ip != null) {
@@ -151,11 +146,7 @@ public abstract class JingleTransportProvider extends ExtensionElementProvider<J
             }
 
             if (network != null) {
-                try {
-                    mt.setNetwork(Integer.parseInt(network));
-                }
-                catch (Exception e) {
-                }
+                mt.setNetwork(Integer.parseInt(network));
             }
 
             if (username != null) {
@@ -167,19 +158,11 @@ public abstract class JingleTransportProvider extends ExtensionElementProvider<J
             }
 
             if (port != null) {
-                try {
-                    mt.setPort(Integer.parseInt(port));
-                }
-                catch (Exception e) {
-                }
+                mt.setPort(Integer.parseInt(port));
             }
 
             if (preference != null) {
-                try {
-                    mt.setPreference(Integer.parseInt(preference));
-                }
-                catch (Exception e) {
-                }
+                mt.setPreference(Integer.parseInt(preference));
             }
 
             if (proto != null) {
@@ -234,11 +217,7 @@ public abstract class JingleTransportProvider extends ExtensionElementProvider<J
             // LOGGER.debug();
 
             if (generation != null) {
-                try {
-                    mt.setGeneration(Integer.parseInt(generation));
-                }
-                catch (Exception e) {
-                }
+                mt.setGeneration(Integer.parseInt(generation));
             }
 
             if (ip != null) {
@@ -250,11 +229,7 @@ public abstract class JingleTransportProvider extends ExtensionElementProvider<J
             }
 
             if (port != null) {
-                try {
-                    mt.setPort(Integer.parseInt(port));
-                }
-                catch (Exception e) {
-                }
+                mt.setPort(Integer.parseInt(port));
             }
             return new JingleTransport.RawUdp.Candidate(mt);
         }

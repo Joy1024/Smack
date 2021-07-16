@@ -72,7 +72,7 @@ import org.jivesoftware.smack.util.CloseableUtil;
  *
  * @author Henning Staib
  */
-public final class Socks5Proxy {
+public class Socks5Proxy {
     private static final Logger LOGGER = Logger.getLogger(Socks5Proxy.class.getName());
 
     private static final List<Socks5Proxy> RUNNING_PROXIES = new CopyOnWriteArrayList<>();
@@ -95,7 +95,7 @@ public final class Socks5Proxy {
     private int localSocks5ProxyPort = -7777;
 
     /* reusable implementation of a SOCKS5 proxy server process */
-    private Socks5ServerProcess serverProcess;
+    private final Socks5ServerProcess serverProcess;
 
     /* thread running the SOCKS5 server process */
     private Thread serverThread;
@@ -112,10 +112,18 @@ public final class Socks5Proxy {
     private final Set<InetAddress> localAddresses = new LinkedHashSet<>(4);
 
     /**
+     * If set to <code>true</code>, then all connections are allowed and the digest is not verified. Should be set to
+     * <code>false</code> for production usage and <code>true</code> for (unit) testing purposes.
+     */
+    private final boolean allowAllConnections;
+
+    /**
      * Private constructor.
      */
     Socks5Proxy() {
         this.serverProcess = new Socks5ServerProcess();
+
+        allowAllConnections = false;
 
         Enumeration<NetworkInterface> networkInterfaces;
         try {
@@ -135,6 +143,22 @@ public final class Socks5Proxy {
         }
         replaceLocalAddresses(localAddresses);
     }
+
+    /**
+     * Constructor a Socks5Proxy with the given socket. Used for unit test purposes.
+     *
+     * @param serverSocket the server socket to use
+     */
+    protected Socks5Proxy(ServerSocket serverSocket) {
+        this.serverProcess = new Socks5ServerProcess();
+        this.serverSocket = serverSocket;
+
+        allowAllConnections = true;
+
+        startServerThread();
+    }
+
+
 
    /**
     * Returns true if the local Socks5 proxy should be started. Default is true.
@@ -206,6 +230,8 @@ public final class Socks5Proxy {
 
     /**
      * Starts the local SOCKS5 proxy server. If it is already running, this method does nothing.
+     *
+     * @return the server socket.
      */
     public synchronized ServerSocket start() {
         if (isRunning()) {
@@ -229,12 +255,7 @@ public final class Socks5Proxy {
             }
 
             if (this.serverSocket != null) {
-                this.serverThread = new Thread(this.serverProcess);
-                this.serverThread.setName("Smack Local SOCKS5 Proxy [" + this.serverSocket + ']');
-                this.serverThread.setDaemon(true);
-
-                RUNNING_PROXIES.add(this);
-                this.serverThread.start();
+                startServerThread();
             }
         }
         catch (IOException e) {
@@ -243,6 +264,15 @@ public final class Socks5Proxy {
         }
 
         return this.serverSocket;
+    }
+
+    private synchronized void startServerThread() {
+        this.serverThread = new Thread(this.serverProcess);
+        this.serverThread.setName("Smack Local SOCKS5 Proxy [" + this.serverSocket + ']');
+        this.serverThread.setDaemon(true);
+
+        RUNNING_PROXIES.add(this);
+        this.serverThread.start();
     }
 
     /**
@@ -407,33 +437,23 @@ public final class Socks5Proxy {
         @Override
         public void run() {
             while (true) {
+                ServerSocket serverSocket = Socks5Proxy.this.serverSocket;
+                if (serverSocket == null || serverSocket.isClosed() || Thread.currentThread().isInterrupted()) {
+                    return;
+                }
+
+                // accept connection
                 Socket socket = null;
-
                 try {
-
-                    if (Socks5Proxy.this.serverSocket == null || Socks5Proxy.this.serverSocket.isClosed()
-                                    || Thread.currentThread().isInterrupted()) {
-                        return;
-                    }
-
-                    // accept connection
-                    socket = Socks5Proxy.this.serverSocket.accept();
-
+                    socket = serverSocket.accept();
                     // initialize connection
                     establishConnection(socket);
-
-                }
-                catch (SocketException e) {
-                    /*
-                     * do nothing, if caused by closing the server socket, thread will terminate in
-                     * next loop
-                     */
-                }
-                catch (Exception e) {
+                } catch (SmackException | IOException e) {
+                    // Do nothing, if caused by closing the server socket, thread will terminate in next loop.
+                    LOGGER.log(Level.FINE, "Exception while " + Socks5Proxy.this + " was handling connection", e);
                     CloseableUtil.maybeClose(socket, LOGGER);
                 }
             }
-
         }
 
         /**
@@ -450,7 +470,7 @@ public final class Socks5Proxy {
             // first byte is version should be 5
             int b = in.read();
             if (b != 5) {
-                throw new SmackException.SmackMessageException("Only SOCKS5 supported");
+                throw new SmackException.SmackMessageException("Only SOCKS5 supported: Peer send " + b + " but we expect 5");
             }
 
             // second byte number of authentication methods supported
@@ -490,12 +510,13 @@ public final class Socks5Proxy {
             String responseDigest = new String(connectionRequest, 5, connectionRequest[4], StandardCharsets.UTF_8);
 
             // return error if digest is not allowed
-            if (!Socks5Proxy.this.allowedConnections.contains(responseDigest)) {
+            if (!allowAllConnections && !Socks5Proxy.this.allowedConnections.contains(responseDigest)) {
                 connectionRequest[1] = (byte) 0x05; // set return status to 5 (connection refused)
                 out.write(connectionRequest);
                 out.flush();
 
-                throw new SmackException.SmackMessageException("Connection is not allowed");
+                throw new SmackException.SmackMessageException(
+                                "Connection with digest '" + responseDigest + "' is not allowed");
             }
 
             // Store the connection before we send the return status.

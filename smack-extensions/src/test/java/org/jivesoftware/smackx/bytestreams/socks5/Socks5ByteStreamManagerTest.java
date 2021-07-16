@@ -16,19 +16,18 @@
  */
 package org.jivesoftware.smackx.bytestreams.socks5;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.util.List;
@@ -42,20 +41,22 @@ import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.packet.ErrorIQ;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.packet.StanzaError;
-import org.jivesoftware.smack.util.NetworkUtil;
+import org.jivesoftware.smack.test.util.NetworkUtil;
+import org.jivesoftware.smack.util.ExceptionUtil;
 
 import org.jivesoftware.smackx.bytestreams.socks5.packet.Bytestream;
 import org.jivesoftware.smackx.bytestreams.socks5.packet.Bytestream.StreamHost;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.disco.packet.DiscoverInfo;
 import org.jivesoftware.smackx.disco.packet.DiscoverInfo.Identity;
+import org.jivesoftware.smackx.disco.packet.DiscoverInfoBuilder;
 import org.jivesoftware.smackx.disco.packet.DiscoverItems;
 import org.jivesoftware.smackx.disco.packet.DiscoverItems.Item;
 
 import org.jivesoftware.util.ConnectionUtils;
 import org.jivesoftware.util.Protocol;
 import org.jivesoftware.util.Verification;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.jxmpp.jid.DomainBareJid;
 import org.jxmpp.jid.EntityFullJid;
 import org.jxmpp.jid.JidTestUtil;
@@ -109,9 +110,9 @@ public class Socks5ByteStreamManagerTest {
      * The SOCKS5 Bytestream feature should be removed form the service discovery manager if Socks5
      * bytestream feature is disabled.
      *
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPErrorException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPErrorException if there was an XMPP error returned.
      */
     @Test
     public void shouldDisableService() throws XMPPErrorException, SmackException, InterruptedException {
@@ -131,10 +132,10 @@ public class Socks5ByteStreamManagerTest {
     /**
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid)} should throw an exception
      * if the given target does not support SOCKS5 Bytestream.
-     * @throws XMPPException
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws IOException
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws IOException if an I/O error occurred.
      */
     @Test
     public void shouldFailIfTargetDoesNotSupportSocks5()
@@ -145,7 +146,7 @@ public class Socks5ByteStreamManagerTest {
 
         FeatureNotSupportedException e = assertThrows(FeatureNotSupportedException.class, () -> {
             // build empty discover info as reply if targets features are queried
-            DiscoverInfo discoverInfo = new DiscoverInfo();
+            DiscoverInfo discoverInfo = DiscoverInfo.builder("disco-1").build();
             protocol.addResponse(discoverInfo);
 
             // start SOCKS5 Bytestream
@@ -159,10 +160,10 @@ public class Socks5ByteStreamManagerTest {
     /**
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid, String)} should fail if XMPP
      * server doesn't return any proxies.
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws IOException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws IOException if an I/O error occurred.
      */
     @Test
     public void shouldFailIfNoSocks5ProxyFound1()
@@ -181,11 +182,11 @@ public class Socks5ByteStreamManagerTest {
          */
 
         // build discover info that supports the SOCKS5 feature
-        DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+        DiscoverInfoBuilder discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
         discoverInfo.addFeature(Bytestream.NAMESPACE);
 
         // return that SOCKS5 is supported if target is queried
-        protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(discoverInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build discover items with no proxy items
@@ -211,10 +212,10 @@ public class Socks5ByteStreamManagerTest {
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid, String)} should fail if no
      * proxy is a SOCKS5 proxy.
      *
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws IOException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws IOException if an I/O error occurred.
      */
     @Test
     public void shouldFailIfNoSocks5ProxyFound2()
@@ -233,11 +234,11 @@ public class Socks5ByteStreamManagerTest {
          */
 
         // build discover info that supports the SOCKS5 feature
-        DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+        DiscoverInfoBuilder discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
         discoverInfo.addFeature(Bytestream.NAMESPACE);
 
         // return that SOCKS5 is supported if target is queried
-        protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(discoverInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build discover items containing a proxy item
@@ -252,12 +253,12 @@ public class Socks5ByteStreamManagerTest {
 
         // build discover info for proxy containing information about NOT being a Socks5
         // proxy
-        DiscoverInfo proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
+        DiscoverInfoBuilder proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
         Identity identity = new Identity("noproxy", proxyJID.toString(), "bytestreams");
         proxyInfo.addIdentity(identity);
 
         // return the proxy identity if proxy is queried
-        protocol.addResponse(proxyInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(proxyInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         SmackException e = assertThrows(SmackException.class, () -> {
@@ -273,10 +274,10 @@ public class Socks5ByteStreamManagerTest {
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid, String)} should fail if no
      * SOCKS5 proxy can be found. If it turns out that a proxy is not a SOCKS5 proxy it should not
      * be queried again.
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws IOException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws IOException if an I/O error occurred.
      */
     @Test
     public void shouldBlacklistNonSocks5Proxies() throws SmackException, InterruptedException, IOException, XMPPException {
@@ -294,9 +295,10 @@ public class Socks5ByteStreamManagerTest {
          */
 
         // build discover info that supports the SOCKS5 feature
-        DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
-        discoverInfo.addFeature(Bytestream.NAMESPACE);
+        DiscoverInfoBuilder discoverInfoBuilder = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+        discoverInfoBuilder.addFeature(Bytestream.NAMESPACE);
 
+        DiscoverInfo discoverInfo = discoverInfoBuilder.build();
         // return that SOCKS5 is supported if target is queried
         protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
@@ -313,12 +315,12 @@ public class Socks5ByteStreamManagerTest {
 
         // build discover info for proxy containing information about NOT being a Socks5
         // proxy
-        DiscoverInfo proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
+        DiscoverInfoBuilder proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
         Identity identity = new Identity("noproxy", proxyJID.toString(), "bytestreams");
         proxyInfo.addIdentity(identity);
 
         // return the proxy identity if proxy is queried
-        protocol.addResponse(proxyInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(proxyInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         SmackException e = assertThrows(SmackException.class, () -> {
@@ -355,10 +357,10 @@ public class Socks5ByteStreamManagerTest {
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid, String)} should fail if the
      * target does not accept a SOCKS5 Bytestream. See <a
      * href="http://xmpp.org/extensions/xep-0065.html#usecase-alternate">XEP-0065 Section 5.2 A2</a>
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws IOException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws IOException if an I/O error occurred.
      */
     @Test
     public void shouldFailIfTargetDoesNotAcceptSocks5Bytestream() throws SmackException, InterruptedException, IOException, XMPPException {
@@ -376,11 +378,11 @@ public class Socks5ByteStreamManagerTest {
          */
 
         // build discover info that supports the SOCKS5 feature
-        DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+        DiscoverInfoBuilder discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
         discoverInfo.addFeature(Bytestream.NAMESPACE);
 
         // return that SOCKS5 is supported if target is queried
-        protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(discoverInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build discover items containing a proxy item
@@ -394,12 +396,12 @@ public class Socks5ByteStreamManagerTest {
                         Verification.requestTypeGET);
 
         // build discover info for proxy containing information about being a SOCKS5 proxy
-        DiscoverInfo proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
+        DiscoverInfoBuilder proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
         Identity identity = new Identity("proxy", proxyJID.toString(), "bytestreams");
         proxyInfo.addIdentity(identity);
 
         // return the socks5 bytestream proxy identity if proxy is queried
-        protocol.addResponse(proxyInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(proxyInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build a socks5 stream host info containing the address and the port of the
@@ -413,8 +415,8 @@ public class Socks5ByteStreamManagerTest {
                         Verification.requestTypeGET);
 
         // build error packet to reject SOCKS5 Bytestream
-        StanzaError.Builder builder = StanzaError.getBuilder(StanzaError.Condition.not_acceptable);
-        IQ rejectPacket = new ErrorIQ(builder);
+        StanzaError stanzaError = StanzaError.getBuilder(StanzaError.Condition.not_acceptable).build();
+        IQ rejectPacket = new ErrorIQ(stanzaError);
         rejectPacket.setFrom(targetJID);
         rejectPacket.setTo(initiatorJID);
 
@@ -435,10 +437,10 @@ public class Socks5ByteStreamManagerTest {
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid, String)} should fail if the
      * proxy used by target is invalid.
      *
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws IOException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws IOException if an I/O error occurred.
      */
     @Test
     public void shouldFailIfTargetUsesInvalidSocks5Proxy()
@@ -458,11 +460,11 @@ public class Socks5ByteStreamManagerTest {
          */
 
         // build discover info that supports the SOCKS5 feature
-        DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+        DiscoverInfoBuilder discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
         discoverInfo.addFeature(Bytestream.NAMESPACE);
 
         // return that SOCKS5 is supported if target is queried
-        protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(discoverInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build discover items containing a proxy item
@@ -476,12 +478,12 @@ public class Socks5ByteStreamManagerTest {
                         Verification.requestTypeGET);
 
         // build discover info for proxy containing information about being a SOCKS5 proxy
-        DiscoverInfo proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
+        DiscoverInfoBuilder proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
         Identity identity = new Identity("proxy", proxyJID.toString(), "bytestreams");
         proxyInfo.addIdentity(identity);
 
         // return the socks5 bytestream proxy identity if proxy is queried
-        protocol.addResponse(proxyInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(proxyInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build a socks5 stream host info containing the address and the port of the
@@ -517,20 +519,27 @@ public class Socks5ByteStreamManagerTest {
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid, String)} should fail if
      * initiator can not connect to the SOCKS5 proxy used by target.
      *
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws XmppStringprepException if the provided string is invalid.
      */
     @Test
     public void shouldFailIfInitiatorCannotConnectToSocks5Proxy()
-                    throws SmackException, InterruptedException, XMPPException {
+                    throws SmackException, InterruptedException, XMPPException, XmppStringprepException {
         final Protocol protocol = new Protocol();
         final XMPPConnection connection = ConnectionUtils.createMockedConnection(protocol, initiatorJID);
         final String sessionID = "session_id_shouldFailIfInitiatorCannotConnectToSocks5Proxy";
 
+        // TODO: The following two variables should be named initatorProxyJid and initiatorProxyAddress.
+        final DomainBareJid proxyJID = JidCreate.domainBareFrom("s5b-proxy.initiator.org");
+        // Use an TEST-NET-1 address from RFC 5737 to act as black hole.
+        final String proxyAddress = "192.0.2.1";
+
         // get Socks5ByteStreamManager for connection
         Socks5BytestreamManager byteStreamManager = Socks5BytestreamManager.getBytestreamManager(connection);
         byteStreamManager.setAnnounceLocalStreamHost(false);
+        byteStreamManager.setProxyConnectionTimeout(3000);
 
         /**
          * create responses in the order they should be queried specified by the XEP-0065
@@ -538,11 +547,11 @@ public class Socks5ByteStreamManagerTest {
          */
 
         // build discover info that supports the SOCKS5 feature
-        DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
-        discoverInfo.addFeature(Bytestream.NAMESPACE);
+        DiscoverInfoBuilder discoverInfoBuilder = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+        discoverInfoBuilder.addFeature(Bytestream.NAMESPACE);
 
         // return that SOCKS5 is supported if target is queried
-        protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(discoverInfoBuilder.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build discover items containing a proxy item
@@ -556,12 +565,12 @@ public class Socks5ByteStreamManagerTest {
                         Verification.requestTypeGET);
 
         // build discover info for proxy containing information about being a SOCKS5 proxy
-        DiscoverInfo proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
+        DiscoverInfoBuilder proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
         Identity identity = new Identity("proxy", proxyJID.toString(), "bytestreams");
         proxyInfo.addIdentity(identity);
 
         // return the socks5 bytestream proxy identity if proxy is queried
-        protocol.addResponse(proxyInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(proxyInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build a socks5 stream host info containing the address and the port of the
@@ -601,18 +610,18 @@ public class Socks5ByteStreamManagerTest {
 
         // initiator can't connect to proxy because it is not running
         protocol.verifyAll();
-        Throwable actualCause = e.getCause().getCause();
-        assertEquals(ConnectException.class, actualCause.getClass());
+        Throwable actualCause = e.getCause();
+        assertEquals(TimeoutException.class, actualCause.getClass(), "Unexpected throwable: " + actualCause + '.' + ExceptionUtil.getStackTrace(actualCause));
     }
 
     /**
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid, String)} should successfully
      * negotiate and return a SOCKS5 Bytestream connection.
      *
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws IOException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws IOException if an I/O error occurred.
      */
     @Test
     public void shouldNegotiateSocks5BytestreamAndTransferData()
@@ -631,11 +640,11 @@ public class Socks5ByteStreamManagerTest {
          */
 
         // build discover info that supports the SOCKS5 feature
-        DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+        DiscoverInfoBuilder discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
         discoverInfo.addFeature(Bytestream.NAMESPACE);
 
         // return that SOCKS5 is supported if target is queried
-        protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(discoverInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build discover items containing a proxy item
@@ -649,12 +658,12 @@ public class Socks5ByteStreamManagerTest {
                         Verification.requestTypeGET);
 
         // build discover info for proxy containing information about being a SOCKS5 proxy
-        DiscoverInfo proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
+        DiscoverInfoBuilder proxyInfo = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
         Identity identity = new Identity("proxy", proxyJID.toString(), "bytestreams");
         proxyInfo.addIdentity(identity);
 
         // return the socks5 bytestream proxy identity if proxy is queried
-        protocol.addResponse(proxyInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(proxyInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build a socks5 stream host info containing the address and the port of the
@@ -729,11 +738,11 @@ public class Socks5ByteStreamManagerTest {
      * If multiple network addresses are added to the local SOCKS5 proxy, all of them should be
      * contained in the SOCKS5 Bytestream request.
      *
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws IOException
-     * @throws XMPPException
-     * @throws TimeoutException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws IOException if an I/O error occurred.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws TimeoutException if there was a timeout.
      */
     @Test
     public void shouldUseMultipleAddressesForLocalSocks5Proxy()
@@ -757,11 +766,11 @@ public class Socks5ByteStreamManagerTest {
              */
 
             // build discover info that supports the SOCKS5 feature
-            DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+            DiscoverInfoBuilder discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
             discoverInfo.addFeature(Bytestream.NAMESPACE);
 
             // return that SOCKS5 is supported if target is queried
-            protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
+            protocol.addResponse(discoverInfo.build(), Verification.correspondingSenderReceiver,
                             Verification.requestTypeGET);
 
             // build discover items containing no proxy item
@@ -835,10 +844,10 @@ public class Socks5ByteStreamManagerTest {
      * Invoking {@link Socks5BytestreamManager#establishSession(org.jxmpp.jid.Jid, String)} the first time
      * should successfully negotiate a SOCKS5 Bytestream via the second SOCKS5 proxy and should
      * prioritize this proxy for a second SOCKS5 Bytestream negotiation.
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
-     * @throws IOException
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws IOException if an I/O error occurred.
      *
      */
     @Test
@@ -924,10 +933,10 @@ public class Socks5ByteStreamManagerTest {
      * should successfully negotiate a SOCKS5 Bytestream via the second SOCKS5 proxy. The second
      * negotiation should run in the same manner if prioritization is disabled.
      *
-     * @throws IOException
-     * @throws InterruptedException
-     * @throws SmackException
-     * @throws XMPPException
+     * @throws IOException if an I/O error occurred.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws XMPPException if an XMPP protocol error was received.
      *
      */
     @Test
@@ -1001,11 +1010,11 @@ public class Socks5ByteStreamManagerTest {
                     Verification<Bytestream, Bytestream> streamHostUsedVerification, Socks5TestProxy socks5TestProxy)
                     throws XmppStringprepException {
         // build discover info that supports the SOCKS5 feature
-        DiscoverInfo discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
+        DiscoverInfoBuilder discoverInfo = Socks5PacketUtils.createDiscoverInfo(targetJID, initiatorJID);
         discoverInfo.addFeature(Bytestream.NAMESPACE);
 
         // return that SOCKS5 is supported if target is queried
-        protocol.addResponse(discoverInfo, Verification.correspondingSenderReceiver,
+        protocol.addResponse(discoverInfo.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build discover items containing a proxy item
@@ -1022,22 +1031,22 @@ public class Socks5ByteStreamManagerTest {
          * build discover info for proxy "proxy2.xmpp-server" containing information about being a
          * SOCKS5 proxy
          */
-        DiscoverInfo proxyInfo1 = Socks5PacketUtils.createDiscoverInfo(JidCreate.from("proxy2.xmpp-server"),
+        DiscoverInfoBuilder proxyInfo1 = Socks5PacketUtils.createDiscoverInfo(JidCreate.from("proxy2.xmpp-server"),
                         initiatorJID);
         Identity identity1 = new Identity("proxy", "proxy2.xmpp-server", "bytestreams");
         proxyInfo1.addIdentity(identity1);
 
         // return the SOCKS5 bytestream proxy identity if proxy is queried
-        protocol.addResponse(proxyInfo1, Verification.correspondingSenderReceiver,
+        protocol.addResponse(proxyInfo1.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         // build discover info for proxy containing information about being a SOCKS5 proxy
-        DiscoverInfo proxyInfo2 = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
+        DiscoverInfoBuilder proxyInfo2 = Socks5PacketUtils.createDiscoverInfo(proxyJID, initiatorJID);
         Identity identity2 = new Identity("proxy", proxyJID.toString(), "bytestreams");
         proxyInfo2.addIdentity(identity2);
 
         // return the SOCKS5 bytestream proxy identity if proxy is queried
-        protocol.addResponse(proxyInfo2, Verification.correspondingSenderReceiver,
+        protocol.addResponse(proxyInfo2.build(), Verification.correspondingSenderReceiver,
                         Verification.requestTypeGET);
 
         /*

@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2015-2019 Florian Schmaus
+ * Copyright 2015-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
  */
 package org.jivesoftware.smackx.muc;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 
@@ -30,9 +30,9 @@ import org.jivesoftware.smackx.muc.MultiUserChat.MucCreateConfigFormHandle;
 import org.jivesoftware.smackx.muc.bookmarkautojoin.MucBookmarkAutojoinManager;
 
 import org.igniterealtime.smack.inttest.AbstractSmackLowLevelIntegrationTest;
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
 import org.igniterealtime.smack.inttest.TestNotPossibleException;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 import org.jxmpp.jid.DomainBareJid;
 import org.jxmpp.jid.impl.JidCreate;
 import org.jxmpp.jid.parts.Localpart;
@@ -40,7 +40,7 @@ import org.jxmpp.jid.parts.Resourcepart;
 
 public class MultiUserChatLowLevelIntegrationTest extends AbstractSmackLowLevelIntegrationTest {
 
-    public MultiUserChatLowLevelIntegrationTest(SmackIntegrationTestEnvironment<?> environment) throws Exception {
+    public MultiUserChatLowLevelIntegrationTest(SmackIntegrationTestEnvironment environment) throws Exception {
         super(environment);
         AbstractXMPPConnection connection = getConnectedConnection();
         try {

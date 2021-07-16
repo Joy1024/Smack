@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2019 Florian Schmaus.
+ * Copyright 2019-2021 Florian Schmaus.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +41,8 @@ import javax.xml.namespace.QName;
  * <p>
  * The following table shows the mapping of Smack's XmlPullParser events to StAX and XPP3 events:
  * </p>
- * <table summary="XmlPullParser event mapping">
+ * <table>
+ * <caption>XmlPullParser event mapping</caption>
  * <tr><th>Smack's {@link XmlPullParser.Event}</th><th>StAX Event</th><th>XPP3 Event</th></tr>
  * <tr><td>{@link XmlPullParser.Event#START_DOCUMENT}</td><td>START_DOCUMENT (7)</td><td>START_DOCUMENT (0)</td></tr>
  * <tr><td>{@link XmlPullParser.Event#END_DOCUMENT}</td><td>END_DOCUMENT (8)</td><td>END_DOCUMENT (1)</td></tr>
@@ -73,6 +74,10 @@ public interface XmlPullParser {
     String getNamespaceUri(int pos) throws XmlPullParserException;
 
     String getNamespace(String prefix);
+
+    default String getDefaultNamespace() {
+        return getNamespace(null);
+    }
 
     int getDepth();
 
@@ -122,6 +127,10 @@ public interface XmlPullParser {
     String getAttributeValue(int index);
 
     String getAttributeValue(String namespace, String name);
+
+    default String getAttributeValue(String name) {
+        return getAttributeValue(null, name);
+    }
 
     Event getEventType() throws XmlPullParserException;
 

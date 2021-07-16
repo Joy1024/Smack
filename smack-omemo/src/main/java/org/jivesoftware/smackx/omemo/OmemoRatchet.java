@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2017 Paul Schaub
+ * Copyright 2017 Paul Schaub, 2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,10 @@
  */
 package org.jivesoftware.smackx.omemo;
 
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
@@ -24,6 +27,7 @@ import java.util.logging.Logger;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 
 import org.jivesoftware.smackx.omemo.element.OmemoElement;
 import org.jivesoftware.smackx.omemo.element.OmemoKeyElement;
@@ -61,14 +65,15 @@ public abstract class OmemoRatchet<T_IdKeyPair, T_IdKey, T_PreKey, T_SigPreKey, 
      * @param encryptedKey key encrypted with the ratchet of the sender.
      * @return decrypted message key.
      *
-     * @throws CorruptedOmemoKeyException
+     * @throws CorruptedOmemoKeyException if the OMEMO key is corrupted.
      * @throws NoRawSessionException when no double ratchet session was found.
-     * @throws CryptoFailedException
-     * @throws UntrustedOmemoIdentityException
+     * @throws CryptoFailedException if the OMEMO cryptography failed.
+     * @throws UntrustedOmemoIdentityException if the OMEMO identity is not trusted.
+     * @throws IOException if an I/O error occurred.
      */
     public abstract byte[] doubleRatchetDecrypt(OmemoDevice sender, byte[] encryptedKey)
             throws CorruptedOmemoKeyException, NoRawSessionException, CryptoFailedException,
-            UntrustedOmemoIdentityException;
+            UntrustedOmemoIdentityException, IOException;
 
     /**
      * Encrypt a messageKey with the double ratchet session of the recipient.
@@ -84,11 +89,13 @@ public abstract class OmemoRatchet<T_IdKeyPair, T_IdKey, T_PreKey, T_SigPreKey, 
      *
      * @param element omemoElement
      * @return tuple of cipher generated from the unpacked message key and the auth-tag
+     *
      * @throws CryptoFailedException if decryption using the double ratchet fails
      * @throws NoRawSessionException if we have no session, but the element was NOT a PreKeyMessage
+     * @throws IOException if an I/O error occurred.
      */
     CipherAndAuthTag retrieveMessageKeyAndAuthTag(OmemoDevice sender, OmemoElement element) throws CryptoFailedException,
-            NoRawSessionException {
+            NoRawSessionException, IOException {
         int keyId = omemoManager.getDeviceId();
         byte[] unpackedKey = null;
         List<CryptoFailedException> decryptExceptions = new ArrayList<>();
@@ -151,6 +158,7 @@ public abstract class OmemoRatchet<T_IdKeyPair, T_IdKey, T_PreKey, T_SigPreKey, 
      * @param element omemoElement containing a payload.
      * @param cipherAndAuthTag cipher and authentication tag.
      * @return decrypted plain text.
+     *
      * @throws CryptoFailedException if decryption using AES key fails.
      */
     static String decryptMessageElement(OmemoElement element, CipherAndAuthTag cipherAndAuthTag)
@@ -167,11 +175,10 @@ public abstract class OmemoRatchet<T_IdKeyPair, T_IdKey, T_PreKey, T_SigPreKey, 
         byte[] encryptedBody = payloadAndAuthTag(element, cipherAndAuthTag.getAuthTag());
 
         try {
-            String plaintext = new String(cipherAndAuthTag.getCipher().doFinal(encryptedBody), StandardCharsets.UTF_8);
-            return plaintext;
-        } catch (IllegalBlockSizeException | BadPaddingException e) {
-            throw new CryptoFailedException("decryptMessageElement could not decipher message body: "
-                    + e.getMessage());
+            return cipherAndAuthTag.decrypt(encryptedBody);
+        } catch (IllegalBlockSizeException | BadPaddingException | InvalidKeyException | NoSuchAlgorithmException
+                        | NoSuchPaddingException | InvalidAlgorithmParameterException e) {
+            throw new CryptoFailedException("decryptMessageElement could not decipher message body", e);
         }
     }
 

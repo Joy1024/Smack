@@ -16,10 +16,10 @@
  */
 package org.jivesoftware.smackx.ox_im;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.assertFalse;
-import static junit.framework.TestCase.assertNotNull;
-import static junit.framework.TestCase.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,13 +32,12 @@ import java.util.Date;
 import org.jivesoftware.smack.DummyConnection;
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.XMPPException;
-import org.jivesoftware.smack.packet.ExtensionElement;
 import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.test.util.FileTestUtil;
+import org.jivesoftware.smack.packet.MessageBuilder;
+import org.jivesoftware.smack.packet.StanzaBuilder;
 import org.jivesoftware.smack.test.util.SmackTestSuite;
 import org.jivesoftware.smack.util.StringUtils;
 import org.jivesoftware.smack.xml.XmlPullParserException;
-
 import org.jivesoftware.smackx.eme.element.ExplicitMessageEncryptionElement;
 import org.jivesoftware.smackx.ox.OpenPgpContact;
 import org.jivesoftware.smackx.ox.OpenPgpManager;
@@ -51,11 +50,11 @@ import org.jivesoftware.smackx.ox.exception.MissingUserIdOnKeyException;
 import org.jivesoftware.smackx.ox.store.filebased.FileBasedOpenPgpStore;
 
 import org.bouncycastle.openpgp.PGPException;
+import org.bouncycastle.openpgp.PGPPublicKeyRingCollection;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.jupiter.api.Test;
 import org.jxmpp.jid.EntityBareJid;
-import org.jxmpp.jid.JidTestUtil;
 import org.pgpainless.decryption_verification.OpenPgpMetadata;
 
 public class OXInstantMessagingManagerTest extends SmackTestSuite {
@@ -63,30 +62,24 @@ public class OXInstantMessagingManagerTest extends SmackTestSuite {
     private static final File basePath;
 
     static {
-        basePath = FileTestUtil.getTempDir("ox_im_test_" + StringUtils.randomString(10));
+        basePath = new File(org.apache.commons.io.FileUtils.getTempDirectory(), "ox_im_test_" + StringUtils.randomString(10));
     }
 
     @Test
     public void test() throws IOException, PGPException, InvalidAlgorithmParameterException, NoSuchAlgorithmException,
             NoSuchProviderException, SmackException, MissingUserIdOnKeyException, InterruptedException, XMPPException,
             XmlPullParserException {
-        DummyConnection aliceCon = new DummyConnection(
-                DummyConnection.DummyConnectionConfiguration.builder()
-                        .setXmppDomain(JidTestUtil.EXAMPLE_ORG)
-                        .setUsernameAndPassword("alice", "dummypass").build());
+        DummyConnection aliceCon = new DummyConnection();
         aliceCon.connect().login();
 
-        DummyConnection bobCon = new DummyConnection(
-                DummyConnection.DummyConnectionConfiguration.builder()
-                        .setXmppDomain(JidTestUtil.EXAMPLE_ORG)
-                        .setUsernameAndPassword("bob", "dummypass").build());
+        DummyConnection bobCon = new DummyConnection();
         bobCon.connect().login();
 
         FileBasedOpenPgpStore aliceStore = new FileBasedOpenPgpStore(new File(basePath, "alice"));
         FileBasedOpenPgpStore bobStore = new FileBasedOpenPgpStore(new File(basePath, "bob"));
 
-        PainlessOpenPgpProvider aliceProvider = new PainlessOpenPgpProvider(aliceCon, aliceStore);
-        PainlessOpenPgpProvider bobProvider = new PainlessOpenPgpProvider(bobCon, bobStore);
+        PainlessOpenPgpProvider aliceProvider = new PainlessOpenPgpProvider(aliceStore);
+        PainlessOpenPgpProvider bobProvider = new PainlessOpenPgpProvider(bobStore);
 
         OpenPgpManager aliceOpenPgp = OpenPgpManager.getInstanceFor(aliceCon);
         OpenPgpManager bobOpenPgp = OpenPgpManager.getInstanceFor(bobCon);
@@ -139,11 +132,13 @@ public class OXInstantMessagingManagerTest extends SmackTestSuite {
         assertFalse(aliceForBob.hasUndecidedKeys());
         assertFalse(bobForAlice.hasUndecidedKeys());
 
-        Message message = new Message();
-        assertFalse(ExplicitMessageEncryptionElement.hasProtocol(message, ExplicitMessageEncryptionElement.ExplicitMessageEncryptionProtocol.openpgpV0));
+        MessageBuilder messageBuilder = StanzaBuilder.buildMessage();
+        assertFalse(ExplicitMessageEncryptionElement.hasProtocol(messageBuilder.build(), ExplicitMessageEncryptionElement.ExplicitMessageEncryptionProtocol.openpgpV0));
 
-        aliceOxim.addOxMessage(message, bobForAlice,
-                Collections.<ExtensionElement>singletonList(new Message.Body(null, "Hello World!")));
+        aliceOxim.addOxMessage(messageBuilder, bobForAlice,
+                Collections.singletonList(new Message.Body(null, "Hello World!")));
+
+        Message message = messageBuilder.build();
         assertTrue(ExplicitMessageEncryptionElement.hasProtocol(message, ExplicitMessageEncryptionElement.ExplicitMessageEncryptionProtocol.openpgpV0));
         assertNotNull(OpenPgpElement.fromStanza(message));
 
@@ -162,14 +157,18 @@ public class OXInstantMessagingManagerTest extends SmackTestSuite {
         // Check, if one of Bobs keys was used for decryption
         assertNotNull(bobSelf.getSigningKeyRing().getPublicKey(metadata.getDecryptionFingerprint().getKeyId()));
 
+        // TODO: I observed this assertTrue() to fail sporadically. As a first attempt to diagnose this, a message was
+        // added to the assertion. However since most (all?) objects used in the message do not implement a proper
+        // toString() this is probably not really helpful as it is.
+        PGPPublicKeyRingCollection pubKeys = aliceForBob.getTrustedAnnouncedKeys();
         // Check if one of Alice' keys was used for signing
         assertTrue(metadata.containsVerifiedSignatureFrom(
-                aliceForBob.getTrustedAnnouncedKeys().iterator().next()));
+                pubKeys.iterator().next()), metadata + " did not contain one of alice' keys " + pubKeys);
     }
 
     @AfterClass
     @BeforeClass
-    public static void deleteDirs() {
-        FileTestUtil.deleteDirectory(basePath);
+    public static void deleteDirs() throws IOException {
+        org.apache.commons.io.FileUtils.deleteDirectory(basePath);
     }
 }

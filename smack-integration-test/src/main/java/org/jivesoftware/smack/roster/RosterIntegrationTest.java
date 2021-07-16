@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2015-2019 Florian Schmaus
+ * Copyright 2015-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
  */
 package org.jivesoftware.smack.roster;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Collection;
 import java.util.concurrent.TimeoutException;
@@ -26,8 +26,8 @@ import org.jivesoftware.smack.roster.packet.RosterPacket.ItemType;
 import org.jivesoftware.smack.util.StringUtils;
 
 import org.igniterealtime.smack.inttest.AbstractSmackIntegrationTest;
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.util.IntegrationTestRosterUtil;
 import org.igniterealtime.smack.inttest.util.SimpleResultSyncPoint;
 import org.jxmpp.jid.BareJid;
@@ -38,7 +38,7 @@ public class RosterIntegrationTest extends AbstractSmackIntegrationTest {
     private final Roster rosterOne;
     private final Roster rosterTwo;
 
-    public RosterIntegrationTest(SmackIntegrationTestEnvironment<?> environment) {
+    public RosterIntegrationTest(SmackIntegrationTestEnvironment environment) {
         super(environment);
         rosterOne = Roster.getInstanceFor(conOne);
         rosterTwo = Roster.getInstanceFor(conTwo);

@@ -16,28 +16,32 @@
  */
 package org.jivesoftware.smackx.omemo;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.jivesoftware.smack.SmackException;
+import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
+import org.jivesoftware.smack.packet.MessageBuilder;
+
 import org.jivesoftware.smackx.mam.MamManager;
 import org.jivesoftware.smackx.mam.element.MamPrefsIQ;
 import org.jivesoftware.smackx.omemo.exceptions.CryptoFailedException;
 import org.jivesoftware.smackx.omemo.exceptions.UndecidedOmemoIdentityException;
 import org.jivesoftware.smackx.omemo.util.MessageOrOmemoMessage;
 
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
 import org.igniterealtime.smack.inttest.TestNotPossibleException;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 
 /**
  * This test sends a message from Alice to Bob, while Bob has automatic decryption disabled.
  * Then Bob fetches his Mam archive and decrypts the result.
  */
 public class OmemoMamDecryptionTest extends AbstractTwoUsersOmemoIntegrationTest {
-    public OmemoMamDecryptionTest(SmackIntegrationTestEnvironment<?> environment)
+    public OmemoMamDecryptionTest(SmackIntegrationTestEnvironment environment)
             throws XMPPException.XMPPErrorException, SmackException.NotConnectedException, InterruptedException,
             SmackException.NoResponseException, TestNotPossibleException {
         super(environment);
@@ -50,7 +54,7 @@ public class OmemoMamDecryptionTest extends AbstractTwoUsersOmemoIntegrationTest
     @SmackIntegrationTest
     public void mamDecryptionTest() throws XMPPException.XMPPErrorException, SmackException.NotLoggedInException,
             SmackException.NotConnectedException, InterruptedException, SmackException.NoResponseException,
-            CryptoFailedException, UndecidedOmemoIdentityException {
+            CryptoFailedException, UndecidedOmemoIdentityException, IOException {
         // Make sure, Bobs server stores messages in the archive
         MamManager bobsMamManager = MamManager.getInstanceFor(bob.getConnection());
         bobsMamManager.enableMamForAllMessages();
@@ -61,7 +65,10 @@ public class OmemoMamDecryptionTest extends AbstractTwoUsersOmemoIntegrationTest
 
         String body = "This message will be stored in MAM!";
         OmemoMessage.Sent encrypted = alice.encrypt(bob.getOwnJid(), body);
-        alice.getConnection().sendStanza(encrypted.asMessage(bob.getOwnJid()));
+
+        XMPPConnection alicesConnection = alice.getConnection();
+        MessageBuilder messageBuilder = alicesConnection.getStanzaFactory().buildMessageStanza();
+        alicesConnection.sendStanza(encrypted.buildMessage(messageBuilder, bob.getOwnJid()));
 
         MamManager.MamQuery query = bobsMamManager.queryArchive(MamManager.MamQueryArgs.builder().limitResultsToJid(alice.getOwnJid()).build());
         assertEquals(1, query.getMessageCount());

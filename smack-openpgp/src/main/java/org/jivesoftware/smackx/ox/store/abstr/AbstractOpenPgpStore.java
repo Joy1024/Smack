@@ -23,7 +23,6 @@ import java.security.NoSuchProviderException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Observable;
 
 import org.jivesoftware.smack.util.Objects;
 
@@ -42,11 +41,10 @@ import org.bouncycastle.openpgp.PGPSecretKeyRing;
 import org.bouncycastle.openpgp.PGPSecretKeyRingCollection;
 import org.jxmpp.jid.BareJid;
 import org.pgpainless.key.OpenPgpV4Fingerprint;
-import org.pgpainless.key.collection.PGPKeyRing;
 import org.pgpainless.key.protection.SecretKeyRingProtector;
 import org.pgpainless.key.protection.UnprotectedKeysProtector;
 
-public abstract class AbstractOpenPgpStore extends Observable implements OpenPgpStore {
+public abstract class AbstractOpenPgpStore implements OpenPgpStore {
 
     protected final OpenPgpKeyStore keyStore;
     protected final OpenPgpMetadataStore metadataStore;
@@ -124,7 +122,7 @@ public abstract class AbstractOpenPgpStore extends Observable implements OpenPgp
     }
 
     @Override
-    public PGPKeyRing generateKeyRing(BareJid owner) throws PGPException, NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
+    public PGPSecretKeyRing generateKeyRing(BareJid owner) throws PGPException, NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
         return keyStore.generateKeyRing(owner);
     }
 

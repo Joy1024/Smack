@@ -110,22 +110,6 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
             public void connectionCreated(final XMPPConnection connection) {
                 // create the manager for this connection
                 InBandBytestreamManager.getByteStreamManager(connection);
-
-                // register shutdown listener
-                connection.addConnectionListener(new AbstractConnectionClosedListener() {
-
-                    @Override
-                    public void connectionTerminated() {
-                        InBandBytestreamManager.getByteStreamManager(connection).disableService();
-                    }
-
-                    @Override
-                    public void connected(XMPPConnection connection) {
-                        InBandBytestreamManager.getByteStreamManager(connection);
-                    }
-
-                });
-
             }
         });
     }
@@ -205,6 +189,15 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      */
     private InBandBytestreamManager(XMPPConnection connection) {
         super(connection);
+
+        connection.addConnectionListener(new AbstractConnectionClosedListener() {
+            @Override
+            public void connectionTerminated() {
+                // reset internal status
+                InBandBytestreamManager.this.sessions.clear();
+                InBandBytestreamManager.this.ignoredBytestreamRequests.clear();
+            }
+        });
 
         // register bytestream open packet listener
         this.initiationListener = new InitiationListener(this);
@@ -401,7 +394,7 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      * @throws XMPPException if the user doesn't support or accept in-band bytestreams, or if the
      *         user prefers smaller block sizes
      * @throws SmackException if there was no response from the server.
-     * @throws InterruptedException
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     @Override
     public InBandBytestreamSession establishSession(Jid targetJID) throws XMPPException, SmackException, InterruptedException {
@@ -419,8 +412,8 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      * @throws XMPPErrorException if the user doesn't support or accept in-band bytestreams, or if the
      *         user prefers smaller block sizes
      * @throws NoResponseException if there was no response from the server.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     @Override
     public InBandBytestreamSession establishSession(Jid targetJID, String sessionID)
@@ -431,7 +424,7 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
         final XMPPConnection connection = connection();
 
         // sending packet will throw exception on timeout or error reply
-        connection.createStanzaCollectorAndSend(byteStreamRequest).nextResultOrThrow();
+        connection.sendIqRequestAndWaitForResponse(byteStreamRequest);
 
         InBandBytestreamSession inBandBytestreamSession = new InBandBytestreamSession(
                         connection, byteStreamRequest, targetJID);
@@ -445,24 +438,11 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      * not accepted.
      *
      * @param request IQ stanza that should be answered with a not-acceptable error
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
-    protected void replyRejectPacket(IQ request) throws NotConnectedException, InterruptedException {
+    void replyRejectPacket(IQ request) throws NotConnectedException, InterruptedException {
         IQ error = IQ.createErrorResponse(request, StanzaError.Condition.not_acceptable);
-        connection().sendStanza(error);
-    }
-
-    /**
-     * Responses to the given IQ packet's sender with an XMPP error that an In-Band Bytestream open
-     * request is rejected because its block size is greater than the maximum allowed block size.
-     *
-     * @param request IQ stanza that should be answered with a resource-constraint error
-     * @throws NotConnectedException
-     * @throws InterruptedException
-     */
-    protected void replyResourceConstraintPacket(IQ request) throws NotConnectedException, InterruptedException {
-        IQ error = IQ.createErrorResponse(request, StanzaError.Condition.resource_constraint);
         connection().sendStanza(error);
     }
 
@@ -471,10 +451,10 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      * session could not be found.
      *
      * @param request IQ stanza that should be answered with a item-not-found error
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
-    protected void replyItemNotFoundPacket(IQ request) throws NotConnectedException, InterruptedException {
+    void replyItemNotFoundPacket(IQ request) throws NotConnectedException, InterruptedException {
         IQ error = IQ.createErrorResponse(request, StanzaError.Condition.item_not_found);
         connection().sendStanza(error);
     }
@@ -496,7 +476,7 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      *
      * @return the XMPP connection
      */
-    protected XMPPConnection getConnection() {
+    XMPPConnection getConnection() {
         return connection();
     }
 
@@ -507,7 +487,7 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      * @param initiator the initiator's JID
      * @return the listener
      */
-    protected BytestreamListener getUserListener(Jid initiator) {
+    BytestreamListener getUserListener(Jid initiator) {
         return this.userListeners.get(initiator);
     }
 
@@ -517,7 +497,7 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      *
      * @return list of listeners
      */
-    protected List<BytestreamListener> getAllRequestListeners() {
+    List<BytestreamListener> getAllRequestListeners() {
         return this.allRequestListeners;
     }
 
@@ -526,7 +506,7 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      *
      * @return the sessions map
      */
-    protected Map<String, InBandBytestreamSession> getSessions() {
+    Map<String, InBandBytestreamSession> getSessions() {
         return sessions;
     }
 
@@ -535,34 +515,8 @@ public final class InBandBytestreamManager extends Manager implements Bytestream
      *
      * @return list of session IDs
      */
-    protected List<String> getIgnoredBytestreamRequests() {
+    List<String> getIgnoredBytestreamRequests() {
         return ignoredBytestreamRequests;
-    }
-
-    /**
-     * Disables the InBandBytestreamManager by removing its stanza listeners and resetting its
-     * internal status, which includes removing this instance from the managers map.
-     */
-    private void disableService() {
-        final XMPPConnection connection = connection();
-
-        // remove manager from static managers map
-        managers.remove(connection);
-
-        // remove all listeners registered by this manager
-        connection.unregisterIQRequestHandler(initiationListener);
-        connection.unregisterIQRequestHandler(dataListener);
-        connection.unregisterIQRequestHandler(closeListener);
-
-        // shutdown threads
-        this.initiationListener.shutdown();
-
-        // reset internal status
-        this.userListeners.clear();
-        this.allRequestListeners.clear();
-        this.sessions.clear();
-        this.ignoredBytestreamRequests.clear();
-
     }
 
 }

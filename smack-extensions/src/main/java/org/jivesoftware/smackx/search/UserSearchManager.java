@@ -24,7 +24,9 @@ import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
-import org.jivesoftware.smackx.xdata.Form;
+import org.jivesoftware.smackx.xdata.form.FillableForm;
+import org.jivesoftware.smackx.xdata.form.Form;
+import org.jivesoftware.smackx.xdata.packet.DataForm;
 
 import org.jxmpp.jid.DomainBareJid;
 
@@ -38,7 +40,8 @@ import org.jxmpp.jid.DomainBareJid;
  * con.login("john", "doe");
  * UserSearchManager search = new UserSearchManager(con, "users.jabber.org");
  * Form searchForm = search.getSearchForm();
- * Form answerForm = searchForm.createAnswerForm();
+ * FillableForm answerForm = searchForm.getFillableForm()
+ * // Fill out the form.
  * answerForm.setAnswer("last", "DeMoro");
  * ReportedData data = search.getSearchResults(answerForm);
  * // Use Returned Data
@@ -66,13 +69,14 @@ public class UserSearchManager {
      *
      * @param searchService the search service to query.
      * @return the form to fill out to perform a search.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public Form getSearchForm(DomainBareJid searchService) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
-        return userSearch.getSearchForm(con, searchService);
+        DataForm dataForm = userSearch.getSearchForm(con, searchService);
+        return new Form(dataForm);
     }
 
     /**
@@ -82,24 +86,25 @@ public class UserSearchManager {
      * @param searchForm    the <code>Form</code> to submit for searching.
      * @param searchService the name of the search service to use.
      * @return the ReportedData returned by the server.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
-    public ReportedData getSearchResults(Form searchForm, DomainBareJid searchService) throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
-        return userSearch.sendSearchForm(con, searchForm, searchService);
+    public ReportedData getSearchResults(FillableForm searchForm, DomainBareJid searchService)
+                    throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
+        DataForm dataForm = searchForm.getDataFormToSubmit();
+        return userSearch.sendSearchForm(con, dataForm, searchService);
     }
-
 
     /**
      * Returns a collection of search services found on the server.
      *
      * @return a Collection of search services found on the server.
-     * @throws XMPPErrorException
-     * @throws NoResponseException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public List<DomainBareJid> getSearchServices() throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException  {
         ServiceDiscoveryManager discoManager = ServiceDiscoveryManager.getInstanceFor(con);

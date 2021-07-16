@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2018-2019 Florian Schmaus
+ * Copyright 2018-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 package org.jivesoftware.smack;
 
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.nio.channels.CancelledKeyException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SelectableChannel;
@@ -116,7 +115,7 @@ public class SmackReactor {
         setReactorThreadCount(DEFAULT_REACTOR_THREAD_COUNT);
     }
 
-    SelectionKey registerWithSelector(SelectableChannel channel, int ops, ChannelSelectedCallback callback)
+    public SelectionKey registerWithSelector(SelectableChannel channel, int ops, ChannelSelectedCallback callback)
             throws ClosedChannelException {
         SelectionKeyAttachment selectionKeyAttachment = new SelectionKeyAttachment(callback);
 
@@ -129,7 +128,7 @@ public class SmackReactor {
         }
     }
 
-    void setInterestOps(SelectionKey selectionKey, int interestOps) {
+    public void setInterestOps(SelectionKey selectionKey, int interestOps) {
         SetInterestOps setInterestOps = new SetInterestOps(selectionKey, interestOps);
         pendingSetInterestOps.add(setInterestOps);
         selector.wakeup();
@@ -145,15 +144,21 @@ public class SmackReactor {
         }
     }
 
-    ScheduledAction schedule(Runnable runnable, long delay, TimeUnit unit) {
+    ScheduledAction schedule(Runnable runnable, long delay, TimeUnit unit, ScheduledAction.Kind scheduledActionKind) {
         long releaseTimeEpoch = System.currentTimeMillis() + unit.toMillis(delay);
         Date releaseTimeDate = new Date(releaseTimeEpoch);
-        ScheduledAction scheduledAction = new ScheduledAction(runnable, releaseTimeDate, this);
+        ScheduledAction scheduledAction = new ScheduledAction(runnable, releaseTimeDate, this, scheduledActionKind);
         scheduledActions.add(scheduledAction);
         selector.wakeup();
         return scheduledAction;
     }
 
+    /**
+     * Cancels the scheduled action.
+     *
+     * @param scheduledAction the scheduled action to cancel.
+     * @return <code>true</code> if the scheduled action was still pending and got removed, <code>false</code> otherwise.
+     */
     boolean cancel(ScheduledAction scheduledAction) {
         return scheduledActions.remove(scheduledAction);
     }
@@ -172,7 +177,7 @@ public class SmackReactor {
                     LOGGER.info(this + " shut down after " + shutDownDelay + "ms");
                 } else {
                     boolean contained = reactorThreads.remove(this);
-                    assert (contained);
+                    assert contained;
                 }
             }
         }
@@ -200,28 +205,29 @@ public class SmackReactor {
             }
 
             if (dueScheduledAction != null) {
-                dueScheduledAction.action.run();
-                return;
-            }
-
-            ScheduledAction nextScheduledAction = scheduledActions.peek();
-
-            long selectWait;
-            if (nextScheduledAction == null) {
-                // There is no next scheduled action, wait indefinitely in select().
-                selectWait = 0;
-            } else {
-                selectWait = nextScheduledAction.getTimeToDueMillis();
-            }
-
-            if (selectWait < 0) {
-                // A scheduled action was just released and become ready to execute.
+                dueScheduledAction.run();
                 return;
             }
 
             int newSelectedKeysCount = 0;
             List<SelectionKey> selectedKeys;
             synchronized (selector) {
+                ScheduledAction nextScheduledAction = scheduledActions.peek();
+
+                long selectWait;
+                if (nextScheduledAction == null) {
+                    // There is no next scheduled action, wait indefinitely in select() or until another thread invokes
+                    // selector.wakeup().
+                    selectWait = 0;
+                } else {
+                    selectWait = nextScheduledAction.getTimeToDueMillis();
+                }
+
+                if (selectWait < 0) {
+                    // A scheduled action was just released and became ready to execute.
+                    return;
+                }
+
                 // Before we call select, we handle the pending the interest Ops. This will not block since no other
                 // thread is currently in select() at this time.
                 // Note: This was put deliberately before the registration lock. It may cause more synchronization but
@@ -361,13 +367,8 @@ public class SmackReactor {
         for (SelectionKey selectionKey : selectedKeys) {
             SelectableChannel channel = selectionKey.channel();
             SelectionKeyAttachment selectionKeyAttachment = (SelectionKeyAttachment) selectionKey.attachment();
-            ChannelSelectedCallback channelSelectedCallback = selectionKeyAttachment.weaeklyReferencedChannelSelectedCallback.get();
-            if (channelSelectedCallback != null) {
-                channelSelectedCallback.onChannelSelected(channel, selectionKey);
-            }
-            else {
-                selectionKey.cancel();
-            }
+            ChannelSelectedCallback channelSelectedCallback = selectionKeyAttachment.channelSelectedCallback;
+            channelSelectedCallback.onChannelSelected(channel, selectionKey);
         }
     }
 
@@ -415,11 +416,11 @@ public class SmackReactor {
     }
 
     public static final class SelectionKeyAttachment {
-        private final WeakReference<ChannelSelectedCallback> weaeklyReferencedChannelSelectedCallback;
+        private final ChannelSelectedCallback channelSelectedCallback;
         private final AtomicBoolean reactorThreadRacing = new AtomicBoolean();
 
         private SelectionKeyAttachment(ChannelSelectedCallback channelSelectedCallback) {
-            this.weaeklyReferencedChannelSelectedCallback = new WeakReference<>(channelSelectedCallback);
+            this.channelSelectedCallback = channelSelectedCallback;
         }
 
         private void setRacing() {

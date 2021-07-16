@@ -20,20 +20,34 @@ import java.util.Date;
 import java.util.concurrent.Delayed;
 import java.util.concurrent.TimeUnit;
 
+import org.jivesoftware.smack.util.Async;
+
 public class ScheduledAction implements Delayed {
 
-    final Runnable action;
+    enum Kind {
+        NonBlocking,
+        Blocking,
+    }
+
+    private final Runnable action;
     final Date releaseTime;
     final SmackReactor smackReactor;
+    final Kind kind;
 
-    ScheduledAction(Runnable action, Date releaseTime, SmackReactor smackReactor) {
+    ScheduledAction(Runnable action, Date releaseTime, SmackReactor smackReactor, Kind kind) {
         this.action = action;
         this.releaseTime = releaseTime;
         this.smackReactor = smackReactor;
+        this.kind = kind;
     }
 
-    public void cancel() {
-        smackReactor.cancel(this);
+    /**
+     * Cancels this scheduled action.
+     *
+     * @return <code>true</code> if the scheduled action was still pending and got removed, <code>false</code> otherwise.
+     */
+    public boolean cancel() {
+        return smackReactor.cancel(this);
     }
 
     public boolean isDue() {
@@ -62,5 +76,16 @@ public class ScheduledAction implements Delayed {
     public long getDelay(TimeUnit unit) {
         long delayInMillis = getTimeToDueMillis();
         return unit.convert(delayInMillis, TimeUnit.MILLISECONDS);
+    }
+
+    void run() {
+        switch (kind) {
+        case NonBlocking:
+            action.run();
+            break;
+        case Blocking:
+            Async.go(() -> action.run());
+            break;
+        }
     }
 }

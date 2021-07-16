@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2003-2007 Jive Software, 2016-2019 Florian Schmaus.
+ * Copyright 2003-2007 Jive Software, 2016-2020 Florian Schmaus.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,12 @@ package org.jivesoftware.smack.util;
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
+import java.util.regex.Pattern;
 
 /**
  * A collection of utility methods for String objects.
@@ -110,7 +113,6 @@ public class StringUtils {
         forAttribute,
         forAttributeApos,
         forText,
-        ;
     }
 
     /**
@@ -268,7 +270,12 @@ public class StringUtils {
     /**
      * 24 upper case characters from the latin alphabet and numbers without '0' and 'O'.
      */
-    private static final char[] UNAMBIGUOUS_NUMBERS_AND_LETTER = "123456789ABCDEFGHIJKLMNPQRSTUVWXYZ".toCharArray();
+    public static final String UNAMBIGUOUS_NUMBERS_AND_LETTERS_STRING = "123456789ABCDEFGHIJKLMNPQRSTUVWXYZ";
+
+    /**
+     * 24 upper case characters from the latin alphabet and numbers without '0' and 'O'.
+     */
+    private static final char[] UNAMBIGUOUS_NUMBERS_AND_LETTERS = UNAMBIGUOUS_NUMBERS_AND_LETTERS_STRING.toCharArray();
 
     /**
      * Returns a random String of numbers and letters (lower and upper case)
@@ -292,14 +299,14 @@ public class StringUtils {
         // See also https://www.grc.com/haystack.htm
         final int REQUIRED_LENGTH = 10;
 
-        return randomString(RandomUtil.SECURE_RANDOM.get(), UNAMBIGUOUS_NUMBERS_AND_LETTER, REQUIRED_LENGTH);
+        return randomString(RandomUtil.SECURE_RANDOM.get(), UNAMBIGUOUS_NUMBERS_AND_LETTERS, REQUIRED_LENGTH);
     }
 
     public static String secureUniqueRandomString() {
         // 34^13 = 8.11e19 possible combinations, which is > 2^64.
         final int REQUIRED_LENGTH = 13;
 
-        return randomString(RandomUtil.SECURE_RANDOM.get(), UNAMBIGUOUS_NUMBERS_AND_LETTER, REQUIRED_LENGTH);
+        return randomString(RandomUtil.SECURE_RANDOM.get(), UNAMBIGUOUS_NUMBERS_AND_LETTERS, REQUIRED_LENGTH);
     }
 
     /**
@@ -322,7 +329,7 @@ public class StringUtils {
         // See also https://www.grc.com/haystack.htm
         final int REQUIRED_LENGTH = 24;
 
-        return randomString(RandomUtil.SECURE_RANDOM.get(), UNAMBIGUOUS_NUMBERS_AND_LETTER, REQUIRED_LENGTH);
+        return randomString(RandomUtil.SECURE_RANDOM.get(), UNAMBIGUOUS_NUMBERS_AND_LETTERS, REQUIRED_LENGTH);
     }
 
     private static final int RANDOM_STRING_CHUNK_SIZE = 4;
@@ -366,8 +373,8 @@ public class StringUtils {
 
         char[] randomChars = new char[length];
         for (int i = 0; i < length; i++) {
-            int index = random.nextInt(UNAMBIGUOUS_NUMBERS_AND_LETTER.length);
-            randomChars[i] = UNAMBIGUOUS_NUMBERS_AND_LETTER[index];
+            int index = random.nextInt(UNAMBIGUOUS_NUMBERS_AND_LETTERS.length);
+            randomChars[i] = UNAMBIGUOUS_NUMBERS_AND_LETTERS[index];
         }
         return new String(randomChars);
     }
@@ -390,7 +397,7 @@ public class StringUtils {
     /**
      * Returns true if the given CharSequence is null or empty.
      *
-     * @param cs
+     * @param cs TODO javadoc me please
      * @return true if the given CharSequence is null or empty
      */
     public static boolean isNullOrEmpty(CharSequence cs) {
@@ -427,10 +434,17 @@ public class StringUtils {
         return true;
     }
 
+    public static boolean isNullOrNotEmpty(CharSequence cs) {
+        if (cs == null) {
+            return true;
+        }
+        return !cs.toString().isEmpty();
+    }
+
     /**
      * Returns true if the given CharSequence is empty.
      *
-     * @param cs
+     * @param cs TODO javadoc me please
      * @return true if the given CharSequence is empty
      */
     public static boolean isEmpty(CharSequence cs) {
@@ -456,14 +470,32 @@ public class StringUtils {
      */
     public static StringBuilder toStringBuilder(Collection<? extends Object> collection, String delimiter) {
         StringBuilder sb = new StringBuilder(collection.size() * 20);
-        for (Iterator<? extends Object> it = collection.iterator(); it.hasNext();) {
-            Object cs = it.next();
-            sb.append(cs);
+        appendTo(collection, delimiter, sb);
+        return sb;
+    }
+
+    public static void appendTo(Collection<? extends Object> collection, StringBuilder sb) {
+        appendTo(collection, ", ", sb);
+    }
+
+    public static <O extends Object> void appendTo(Collection<O> collection, StringBuilder sb,
+                    Consumer<O> appendFunction) {
+        appendTo(collection, ", ", sb, appendFunction);
+    }
+
+    public static void appendTo(Collection<? extends Object> collection, String delimiter, StringBuilder sb) {
+        appendTo(collection, delimiter, sb, o -> sb.append(o));
+    }
+
+    public static <O extends Object> void appendTo(Collection<O> collection, String delimiter, StringBuilder sb,
+                    Consumer<O> appendFunction) {
+        for (Iterator<O> it = collection.iterator(); it.hasNext();) {
+            O cs = it.next();
+            appendFunction.accept(cs);
             if (it.hasNext()) {
                 sb.append(delimiter);
             }
         }
-        return sb;
     }
 
     public static String returnIfNotEmptyTrimmed(String string) {
@@ -498,7 +530,7 @@ public class StringUtils {
      * @param cs CharSequence
      * @param message error message
      * @param <CS> CharSequence type
-     * @return cs
+     * @return cs TODO javadoc me please
      */
     @Deprecated
     public static <CS extends CharSequence> CS requireNotNullOrEmpty(CS cs, String message) {
@@ -511,7 +543,7 @@ public class StringUtils {
      * @param cs CharSequence
      * @param message error message
      * @param <CS> CharSequence type
-     * @return cs
+     * @return cs TODO javadoc me please
      */
     public static <CS extends CharSequence> CS requireNotNullNorEmpty(CS cs, String message) {
         if (isNullOrEmpty(cs)) {
@@ -524,7 +556,7 @@ public class StringUtils {
         if (cs == null) {
             return null;
         }
-        if (cs.toString().isEmpty()) {
+        if (isEmpty(cs)) {
             throw new IllegalArgumentException(message);
         }
         return cs;
@@ -541,5 +573,36 @@ public class StringUtils {
             return null;
         }
         return cs.toString();
+    }
+
+    /**
+     * Defined by XML 1.0 § 2.3 as:
+     *  S      ::=      (#x20 | #x9 | #xD | #xA)+
+     *
+     * @see <a href="https://www.w3.org/TR/xml/#sec-white-space">XML 1.0 § 2.3</a>
+     */
+    private static final Pattern XML_WHITESPACE = Pattern.compile("[\t\n\r ]");
+
+    public static String deleteXmlWhitespace(String string) {
+        return XML_WHITESPACE.matcher(string).replaceAll("");
+    }
+
+    public static Appendable appendHeading(Appendable appendable, String heading) throws IOException {
+        return appendHeading(appendable, heading, '-');
+    }
+
+    public static Appendable appendHeading(Appendable appendable, String heading, char underlineChar) throws IOException {
+        appendable.append(heading).append('\n');
+        for (int i = 0; i < heading.length(); i++) {
+            appendable.append(underlineChar);
+        }
+        return appendable.append('\n');
+    }
+
+    public static final String PORTABLE_NEWLINE_REGEX = "\\r?\\n";
+
+    public static List<String> splitLinesPortable(String input) {
+        String[] lines = input.split(PORTABLE_NEWLINE_REGEX);
+        return Arrays.asList(lines);
     }
 }

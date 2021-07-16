@@ -1,6 +1,6 @@
 /**
  *
- * Copyright © 2017 Paul Schaub, 2019 Florian Schmaus
+ * Copyright © 2017 Paul Schaub, 2019-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ import static org.jivesoftware.smackx.hashes.HashManager.ALGORITHM.SHA_512;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.Security;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -47,8 +46,6 @@ import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.hashes.element.HashElement;
 
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-
 /**
  * Manager that can be used to determine support for hash functions. By default the Manager announces support for
  * XEP-0300, as well as for the recommended set of hash algorithms. Those contain SHA256, SHA384, SHA512, SHA3-256,
@@ -56,10 +53,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
  * <a href="https://xmpp.org/extensions/xep-0300.html#recommendations">https://xmpp.org/extensions/xep-0300.html#recommendations</a>.
  */
 public final class HashManager extends Manager {
-
-    static {
-        Security.addProvider(new BouncyCastleProvider());
-    }
 
     public static final String PREFIX_NS_ALGO = "urn:xmpp:hash-function-text-names:";
 
@@ -108,7 +101,7 @@ public final class HashManager extends Manager {
 
     /**
      * Announce support for the given list of algorithms.
-     * @param algorithms
+     * @param algorithms TODO javadoc me please
      */
     public void addAlgorithmsToFeatures(List<ALGORITHM> algorithms) {
         ServiceDiscoveryManager sdm = ServiceDiscoveryManager.getInstanceFor(connection());
@@ -119,7 +112,7 @@ public final class HashManager extends Manager {
 
     /**
      * Get an instance of the HashManager for the  given connection.
-     * @param connection
+     * @param connection TODO javadoc me please
      * @return the manager for the given connection.
      */
     public static synchronized HashManager getInstanceFor(XMPPConnection connection) {
@@ -188,7 +181,7 @@ public final class HashManager extends Manager {
         /**
          * Compensational method for static 'valueOf' function.
          *
-         * @param s
+         * @param s TODO javadoc me please
          * @return the algorithm for the given string.
          * @throws IllegalArgumentException if no algorithm for the given string is known.
          */

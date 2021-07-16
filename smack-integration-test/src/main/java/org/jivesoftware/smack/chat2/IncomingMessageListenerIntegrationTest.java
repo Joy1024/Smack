@@ -19,14 +19,14 @@ package org.jivesoftware.smack.chat2;
 import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.util.StringUtils;
 
-import org.igniterealtime.smack.inttest.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.SmackIntegrationTestEnvironment;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 import org.igniterealtime.smack.inttest.util.SimpleResultSyncPoint;
 import org.jxmpp.jid.EntityBareJid;
 
 public class IncomingMessageListenerIntegrationTest extends AbstractChatIntegrationTest {
 
-    public IncomingMessageListenerIntegrationTest(SmackIntegrationTestEnvironment<?> environment) {
+    public IncomingMessageListenerIntegrationTest(SmackIntegrationTestEnvironment environment) {
         super(environment);
     }
 

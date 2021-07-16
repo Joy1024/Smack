@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2018 Paul Schaub
+ * Copyright 2018 Paul Schaub, 2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,56 +21,76 @@ import java.util.WeakHashMap;
 
 import org.jivesoftware.smack.ConnectionCreationListener;
 import org.jivesoftware.smack.Manager;
-import org.jivesoftware.smack.StanzaListener;
 import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPConnectionRegistry;
 import org.jivesoftware.smack.filter.AndFilter;
 import org.jivesoftware.smack.filter.MessageTypeFilter;
 import org.jivesoftware.smack.filter.NotFilter;
+import org.jivesoftware.smack.filter.StanzaExtensionFilter;
 import org.jivesoftware.smack.filter.StanzaFilter;
 import org.jivesoftware.smack.filter.ToTypeFilter;
-import org.jivesoftware.smack.packet.Message;
-import org.jivesoftware.smack.packet.Stanza;
 
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
+import org.jivesoftware.smackx.muc.MultiUserChatManager;
 import org.jivesoftware.smackx.sid.element.OriginIdElement;
 
+/**
+ * Manager class for Stable and Unique Stanza IDs.
+ *
+ * In order to start automatically appending origin ids to outgoing messages, use {@link #enable()}.
+ * This will announce support via the {@link ServiceDiscoveryManager}. If you want to stop appending origin-ids
+ * and de-announce support, call {@link #disable()}.
+ *
+ * @see <a href="https://xmpp.org/extensions/xep-0359.html">XEP-0359: Stable and Unique Stanza IDs</a>
+ */
 public final class StableUniqueStanzaIdManager extends Manager {
 
     public static final String NAMESPACE = "urn:xmpp:sid:0";
 
     private static final Map<XMPPConnection, StableUniqueStanzaIdManager> INSTANCES = new WeakHashMap<>();
 
+    private static boolean enabledByDefault = false;
+
     // Filter for outgoing stanzas.
     private static final StanzaFilter OUTGOING_FILTER = new AndFilter(
             MessageTypeFilter.NORMAL_OR_CHAT_OR_HEADLINE,
             ToTypeFilter.ENTITY_FULL_OR_BARE_JID);
 
-    // Listener for outgoing stanzas that adds origin-ids to outgoing stanzas.
-    private static final StanzaListener ADD_ORIGIN_ID_INTERCEPTOR = new StanzaListener() {
-        @Override
-        public void processStanza(Stanza stanza) {
-            Message message = (Message) stanza;
-            OriginIdElement.addOriginId(message);
-        }
-    };
+    // Filter that filters for messages with an origin id
+    private static final StanzaFilter ORIGIN_ID_FILTER = new StanzaExtensionFilter(OriginIdElement.ELEMENT, NAMESPACE);
+
+    // We need a filter for outgoing messages that do not carry an origin-id already.
+    private static final StanzaFilter ADD_ORIGIN_ID_FILTER = new AndFilter(OUTGOING_FILTER, new NotFilter(ORIGIN_ID_FILTER));
 
     static {
         XMPPConnectionRegistry.addConnectionCreationListener(new ConnectionCreationListener() {
             @Override
             public void connectionCreated(XMPPConnection connection) {
-                getInstanceFor(connection);
+                if (enabledByDefault) {
+                    getInstanceFor(connection).enable();
+                }
+
+                MultiUserChatManager.addDefaultMessageInterceptor((mb, muc) -> {
+                    // No need to add an <origin-id/> if the MUC service supports stable IDs.
+                    if (muc.serviceSupportsStableIds()) {
+                        return;
+                    }
+                    OriginIdElement.addTo(mb);
+                });
             }
         });
     }
 
     /**
      * Private constructor.
-     * @param connection
+     * @param connection XMPP connection
      */
     private StableUniqueStanzaIdManager(XMPPConnection connection) {
         super(connection);
-        enable();
+    }
+
+    public static void setEnabledByDefault(boolean enabled) {
+        enabledByDefault = enabled;
     }
 
     /**
@@ -92,9 +112,8 @@ public final class StableUniqueStanzaIdManager extends Manager {
      * Start appending origin-id elements to outgoing stanzas and add the feature to disco.
      */
     public synchronized void enable() {
+        connection().addMessageInterceptor(OriginIdElement::addTo, ADD_ORIGIN_ID_FILTER::accept);
         ServiceDiscoveryManager.getInstanceFor(connection()).addFeature(NAMESPACE);
-        StanzaFilter filter = new AndFilter(OUTGOING_FILTER, new NotFilter(OUTGOING_FILTER));
-        connection().addStanzaInterceptor(ADD_ORIGIN_ID_INTERCEPTOR, filter);
     }
 
     /**
@@ -102,7 +121,7 @@ public final class StableUniqueStanzaIdManager extends Manager {
      */
     public synchronized void disable() {
         ServiceDiscoveryManager.getInstanceFor(connection()).removeFeature(NAMESPACE);
-        connection().removeStanzaInterceptor(ADD_ORIGIN_ID_INTERCEPTOR);
+        connection().removeMessageInterceptor(OriginIdElement::addTo);
     }
 
     /**

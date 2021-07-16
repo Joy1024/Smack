@@ -16,20 +16,18 @@
  */
 package org.jivesoftware.smackx.geoloc.packet;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.net.URI;
 import java.util.Calendar;
 import java.util.TimeZone;
 
 import org.jivesoftware.smack.packet.Message;
+import org.jivesoftware.smack.test.util.SmackTestSuite;
 import org.jivesoftware.smack.util.PacketParserUtils;
 
-import org.jivesoftware.smackx.InitExtensions;
-import org.jivesoftware.smackx.time.packet.Time;
-
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.jxmpp.util.XmppDateTime;
 
 /**
@@ -37,16 +35,18 @@ import org.jxmpp.util.XmppDateTime;
  *
  * @author Ishan Khanna
  */
-public class GeoLocationTest extends InitExtensions {
+public class GeoLocationTest extends SmackTestSuite {
 
     @Test
     public void negativeTimezoneTest() {
         Calendar calendar = Calendar.getInstance();
         calendar.setTimeZone(TimeZone.getTimeZone("GMT-830"));
 
-        Time time = new Time(calendar);
+        String tzo = XmppDateTime.asString(calendar.getTimeZone());
 
-        GeoLocation geoLocation = new GeoLocation.Builder().setTzo(time.getTzo()).build();
+        GeoLocation geoLocation = GeoLocation.builder()
+                        .setTzo(tzo)
+                        .build();
 
         assertEquals("-8:30", geoLocation.getTzo());
     }
@@ -56,9 +56,11 @@ public class GeoLocationTest extends InitExtensions {
         Calendar calendar = Calendar.getInstance();
         calendar.setTimeZone(TimeZone.getTimeZone("GMT+530"));
 
-        Time time = new Time(calendar);
+        String tzo = XmppDateTime.asString(calendar.getTimeZone());
 
-        GeoLocation geoLocation = new GeoLocation.Builder().setTzo(time.getTzo()).build();
+        GeoLocation geoLocation = GeoLocation.builder()
+                        .setTzo(tzo)
+                        .build();
 
         assertEquals("+5:30", geoLocation.getTzo());
 
@@ -67,7 +69,7 @@ public class GeoLocationTest extends InitExtensions {
     @Test
     public void accuracyTest() {
 
-        GeoLocation geoLocation = new GeoLocation.Builder().setAccuracy(1.34d).build();
+        GeoLocation geoLocation = GeoLocation.builder().setAccuracy(1.34d).build();
 
         assertEquals((Double) 1.34, geoLocation.getAccuracy());
     }
@@ -75,7 +77,7 @@ public class GeoLocationTest extends InitExtensions {
     @Test
     public void altAccuracyTest() {
 
-        GeoLocation geoLocation = new GeoLocation.Builder().setAltAccuracy(1.52d).build();
+        GeoLocation geoLocation = GeoLocation.builder().setAltAccuracy(1.52d).build();
 
         assertEquals((Double) 1.52, geoLocation.getAltAccuracy());
     }
@@ -117,11 +119,11 @@ public class GeoLocationTest extends InitExtensions {
         Message messageWithGeoLocation = PacketParserUtils.parseStanza(geoLocationMessageString);
         assertNotNull(messageWithGeoLocation);
 
-        GeoLocation geoLocation = messageWithGeoLocation.getExtension(GeoLocation.ELEMENT,
-                        GeoLocation.NAMESPACE);
+        GeoLocation geoLocation = messageWithGeoLocation.getExtension(GeoLocation.class);
         assertNotNull(geoLocation);
         assertNotNull(geoLocation.toXML());
 
+        @SuppressWarnings("deprecation")
         GeoLocation constructedGeoLocation = GeoLocation.builder().setAccuracy(23d).setAlt(1000d).setAltAccuracy(10d).setArea("Delhi").setBearing(
                         10d).setBuilding("Small Building").setCountry("India").setCountryCode("IN").setDescription(
                         "My Description").setError(90d).setFloor("top").setLat(25.098345d).setLocality("awesome").setLon(

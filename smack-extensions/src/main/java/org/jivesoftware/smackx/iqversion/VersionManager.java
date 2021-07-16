@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2014 Georg Lukas.
+ * Copyright 2014 Georg Lukas, 2021 Florian Schmaus.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.jivesoftware.smackx.iqversion;
 
 import java.util.Map;
@@ -22,7 +21,7 @@ import java.util.WeakHashMap;
 
 import org.jivesoftware.smack.ConnectionCreationListener;
 import org.jivesoftware.smack.Manager;
-import org.jivesoftware.smack.SmackConfiguration;
+import org.jivesoftware.smack.Smack;
 import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPConnection;
@@ -32,6 +31,7 @@ import org.jivesoftware.smack.iqrequest.AbstractIqRequestHandler;
 import org.jivesoftware.smack.iqrequest.IQRequestHandler.Mode;
 import org.jivesoftware.smack.packet.IQ;
 import org.jivesoftware.smack.packet.StanzaError.Condition;
+import org.jivesoftware.smack.util.StringUtils;
 
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.iqversion.packet.Version;
@@ -57,9 +57,9 @@ import org.jxmpp.jid.Jid;
 public final class VersionManager extends Manager {
     private static final Map<XMPPConnection, VersionManager> INSTANCES = new WeakHashMap<>();
 
-    private static Version defaultVersion;
+    private static VersionInformation defaultVersion;
 
-    private Version ourVersion = defaultVersion;
+    private VersionInformation ourVersion = defaultVersion;
 
     public static void setDefaultVersion(String name, String version) {
         setDefaultVersion(name, version, null);
@@ -94,7 +94,13 @@ public final class VersionManager extends Manager {
                     return IQ.createErrorResponse(iqRequest, Condition.not_acceptable);
                 }
 
-                return Version.createResultFor(iqRequest, ourVersion);
+                Version versionRequest = (Version) iqRequest;
+                Version versionResponse = Version.builder(versionRequest)
+                                .setName(ourVersion.name)
+                                .setVersion(ourVersion.version)
+                                .setOs(ourVersion.os)
+                                .build();
+                return versionResponse;
             }
         });
     }
@@ -135,25 +141,39 @@ public final class VersionManager extends Manager {
     /**
      * Request version information from a given JID.
      *
-     * @param jid
+     * @param jid TODO javadoc me please
      * @return the version information or {@code null} if not supported by JID
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public Version getVersion(Jid jid) throws NoResponseException, XMPPErrorException,
                     NotConnectedException, InterruptedException {
         if (!isSupported(jid)) {
             return null;
         }
-        return connection().createStanzaCollectorAndSend(new Version(jid)).nextResultOrThrow();
+        XMPPConnection connection = connection();
+        Version version = Version.builder(connection).to(jid).build();
+        return connection().sendIqRequestAndWaitForResponse(version);
     }
 
-    private static Version generateVersionFrom(String name, String version, String os) {
+    private static VersionInformation generateVersionFrom(String name, String version, String os) {
         if (autoAppendSmackVersion) {
-            name += " (Smack " + SmackConfiguration.getVersion() + ')';
+            name += " (Smack " + Smack.getVersion() + ')';
         }
-        return new Version(name, version, os);
+        return new VersionInformation(name, version, os);
+    }
+
+    private static final class VersionInformation {
+        private final String name;
+        private final String version;
+        private final String os;
+
+        private VersionInformation(String name, String version, String os) {
+            this.name = StringUtils.requireNotNullNorEmpty(name, "Must provide a name");
+            this.version = StringUtils.requireNotNullNorEmpty(version, "Must provide a version");
+            this.os = os;
+        }
     }
 }

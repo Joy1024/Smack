@@ -28,7 +28,6 @@ import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPConnectionRegistry;
 import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.packet.IQ;
-import org.jivesoftware.smack.packet.IQ.Type;
 
 import org.jivesoftware.smackx.disco.ServiceDiscoveryManager;
 import org.jivesoftware.smackx.push_notifications.element.DisablePushNotificationsIQ;
@@ -61,7 +60,7 @@ public final class PushNotificationsManager extends Manager {
     /**
      * Get the singleton instance of PushNotificationsManager.
      *
-     * @param connection
+     * @param connection TODO javadoc me please
      * @return the instance of PushNotificationsManager
      */
     public static synchronized PushNotificationsManager getInstanceFor(XMPPConnection connection) {
@@ -83,10 +82,10 @@ public final class PushNotificationsManager extends Manager {
      * Returns true if Push Notifications are supported by this account.
      *
      * @return true if Push Notifications are supported by this account.
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      * @since 4.2.2
      */
     public boolean isSupported()
@@ -98,13 +97,13 @@ public final class PushNotificationsManager extends Manager {
     /**
      * Enable push notifications.
      *
-     * @param pushJid
-     * @param node
+     * @param pushJid TODO javadoc me please
+     * @param node TODO javadoc me please
      * @return true if it was successfully enabled, false if not
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean enable(Jid pushJid, String node)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -114,14 +113,14 @@ public final class PushNotificationsManager extends Manager {
     /**
      * Enable push notifications.
      *
-     * @param pushJid
-     * @param node
-     * @param publishOptions
+     * @param pushJid TODO javadoc me please
+     * @param node TODO javadoc me please
+     * @param publishOptions TODO javadoc me please
      * @return true if it was successfully enabled, false if not
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean enable(Jid pushJid, String node, HashMap<String, String> publishOptions)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -133,12 +132,12 @@ public final class PushNotificationsManager extends Manager {
     /**
      * Disable all push notifications.
      *
-     * @param pushJid
+     * @param pushJid TODO javadoc me please
      * @return true if it was successfully disabled, false if not
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean disableAll(Jid pushJid)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -148,13 +147,13 @@ public final class PushNotificationsManager extends Manager {
     /**
      * Disable push notifications of an specific node.
      *
-     * @param pushJid
-     * @param node
+     * @param pushJid TODO javadoc me please
+     * @param node TODO javadoc me please
      * @return true if it was successfully disabled, false if not
-     * @throws NoResponseException
-     * @throws XMPPErrorException
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NoResponseException if there was no response from the remote entity.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     public boolean disable(Jid pushJid, String node)
             throws NoResponseException, XMPPErrorException, NotConnectedException, InterruptedException {
@@ -165,8 +164,8 @@ public final class PushNotificationsManager extends Manager {
     private boolean changePushNotificationsStatus(IQ iq)
             throws NotConnectedException, InterruptedException, NoResponseException, XMPPErrorException {
         final XMPPConnection connection = connection();
-        IQ responseIQ = connection.createStanzaCollectorAndSend(iq).nextResultOrThrow();
-        return responseIQ.getType() != Type.error;
+        IQ responseIQ = connection.sendIqRequestAndWaitForResponse(iq);
+        return responseIQ.getType() != IQ.Type.error;
     }
 
 }

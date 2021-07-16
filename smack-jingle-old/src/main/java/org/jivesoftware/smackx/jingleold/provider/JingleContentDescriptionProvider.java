@@ -41,21 +41,15 @@ public abstract class JingleContentDescriptionProvider extends ExtensionElementP
      * @return a payload type element
      */
     protected JinglePayloadType parsePayload(final XmlPullParser parser) {
-        int ptId = 0;
+        int ptId;
         String ptName;
-        int ptChannels = 0;
+        int ptChannels;
 
-        try {
-            ptId = Integer.parseInt(parser.getAttributeValue("", "id"));
-        } catch (Exception e) {
-        }
+        ptId = Integer.parseInt(parser.getAttributeValue("", "id"));
 
         ptName = parser.getAttributeValue("", "name");
 
-        try {
-            ptChannels = Integer.parseInt(parser.getAttributeValue("", "channels"));
-        } catch (Exception e) {
-        }
+        ptChannels = Integer.parseInt(parser.getAttributeValue("", "channels"));
 
         return new JinglePayloadType(new PayloadType(ptId, ptName, ptChannels));
     }
@@ -65,21 +59,20 @@ public abstract class JingleContentDescriptionProvider extends ExtensionElementP
      *
      * @param parser the input to parse
      * @return a description element
-     * @throws IOException
-     * @throws XmlPullParserException
+     * @throws IOException if an I/O error occurred.
+     * @throws XmlPullParserException if an error in the XML parser occurred.
      */
     @Override
     public JingleContentDescription parse(XmlPullParser parser,
                     int initialDepth, XmlEnvironment xmlEnvironment) throws XmlPullParserException,
                     IOException {
-        boolean done = false;
         JingleContentDescription desc = getInstance();
 
-        while (!done) {
+        outerloop: while (true) {
             XmlPullParser.Event eventType = parser.next();
-            String name = parser.getName();
 
             if (eventType == XmlPullParser.Event.START_ELEMENT) {
+                String name = parser.getName();
                 if (name.equals(JingleContentDescription.JinglePayloadType.NODENAME)) {
                     desc.addJinglePayloadType(parsePayload(parser));
                 } else {
@@ -87,8 +80,8 @@ public abstract class JingleContentDescriptionProvider extends ExtensionElementP
                     throw new IOException("Unknow element \"" + name + "\" in content.");
                 }
             } else if (eventType == XmlPullParser.Event.END_ELEMENT) {
-                if (name.equals(JingleContentDescription.NODENAME)) {
-                    done = true;
+                if (parser.getDepth() == initialDepth) {
+                    break outerloop;
                 }
             }
         }
@@ -98,6 +91,8 @@ public abstract class JingleContentDescriptionProvider extends ExtensionElementP
     /**
      * Return a new instance of this class. Subclasses must overwrite this
      * method.
+     *
+     * @return the jingle content description.
      */
     protected abstract JingleContentDescription getInstance();
 
@@ -113,12 +108,7 @@ public abstract class JingleContentDescriptionProvider extends ExtensionElementP
         public JinglePayloadType parsePayload(final XmlPullParser parser) {
             JinglePayloadType pte = super.parsePayload(parser);
             PayloadType.Audio pt = new PayloadType.Audio(pte.getPayloadType());
-            int ptClockRate = 0;
-
-            try {
-                ptClockRate = Integer.parseInt(parser.getAttributeValue("", "clockrate"));
-            } catch (Exception e) {
-            }
+            int ptClockRate = Integer.parseInt(parser.getAttributeValue("", "clockrate"));
             pt.setClockRate(ptClockRate);
 
             return new JinglePayloadType.Audio(pt);

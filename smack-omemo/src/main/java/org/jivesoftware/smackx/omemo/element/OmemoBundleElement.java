@@ -60,8 +60,8 @@ public abstract class OmemoBundleElement implements ExtensionElement {
      * @param preKeysB64 HashMap of base64 encoded preKeys
      */
     public OmemoBundleElement(int signedPreKeyId, String signedPreKeyB64, String signedPreKeySigB64, String identityKeyB64, HashMap<Integer, String> preKeysB64) {
-        if (signedPreKeyId <= 0) {
-            throw new IllegalArgumentException("signedPreKeyId MUST be greater than 0.");
+        if (signedPreKeyId < 0) {
+            throw new IllegalArgumentException("signedPreKeyId MUST be greater than or equal to 0.");
         }
         this.signedPreKeyId = signedPreKeyId;
         this.signedPreKeyB64 = StringUtils.requireNotNullNorEmpty(signedPreKeyB64, "signedPreKeyB64 MUST NOT be null nor empty.");
@@ -158,7 +158,7 @@ public abstract class OmemoBundleElement implements ExtensionElement {
      * Return the HashMap of preKeys in the bundle.
      * The map uses the preKeys ids as key and the preKeys as value.
      *
-     * @return preKeys
+     * @return preKeys Pre-Keys contained in the bundle
      */
     public HashMap<Integer, byte[]> getPreKeys() {
         if (preKeys == null) {
@@ -209,15 +209,17 @@ public abstract class OmemoBundleElement implements ExtensionElement {
 
     @Override
     public String toString() {
-        String out = "OmemoBundleElement[\n";
-        out += SIGNED_PRE_KEY_PUB + " " + SIGNED_PRE_KEY_ID + "=" + signedPreKeyId + ": " + signedPreKeyB64 + "\n";
-        out += SIGNED_PRE_KEY_SIG + ": " + signedPreKeySignatureB64 + "\n";
-        out += IDENTITY_KEY + ": " + identityKeyB64 + "\n";
-        out += PRE_KEYS + " (" + preKeysB64.size() + ")\n";
+        StringBuilder sb = new StringBuilder("OmemoBundleElement[\n");
+        sb.append(SIGNED_PRE_KEY_PUB).append(' ').append(SIGNED_PRE_KEY_ID).append('=').append(signedPreKeyId)
+                .append(':').append(signedPreKeyB64).append('\n')
+                .append(SIGNED_PRE_KEY_SIG).append(": ").append(signedPreKeySignatureB64).append('\n')
+                .append(IDENTITY_KEY).append(": ").append(identityKeyB64).append('\n')
+                .append(PRE_KEYS).append(" (").append(preKeysB64.size()).append(")\n");
         for (Map.Entry<Integer, String> e : preKeysB64.entrySet()) {
-            out += PRE_KEY_PUB + " " + PRE_KEY_ID + "=" + e.getKey() + ": " + e.getValue() + "\n";
+            sb.append(PRE_KEY_PUB).append(' ').append(PRE_KEY_ID).append('=').append(e.getKey()).append(": ").append(e.getValue()).append('\n');
         }
-        return out;
+        sb.append(']');
+        return sb.toString();
     }
 
     @Override

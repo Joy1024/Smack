@@ -25,8 +25,10 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.jivesoftware.smack.SmackException;
+import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.SmackException.NotConnectedException;
 import org.jivesoftware.smack.XMPPException;
+import org.jivesoftware.smack.XMPPException.XMPPErrorException;
 import org.jivesoftware.smack.packet.IQ;
 
 import org.jivesoftware.smackx.jingleold.ContentNegotiator;
@@ -37,7 +39,6 @@ import org.jivesoftware.smackx.jingleold.JingleNegotiatorState;
 import org.jivesoftware.smackx.jingleold.JingleSession;
 import org.jivesoftware.smackx.jingleold.listeners.JingleListener;
 import org.jivesoftware.smackx.jingleold.listeners.JingleTransportListener;
-import org.jivesoftware.smackx.jingleold.nat.ICECandidate.Type;
 import org.jivesoftware.smackx.jingleold.packet.Jingle;
 import org.jivesoftware.smackx.jingleold.packet.JingleContent;
 import org.jivesoftware.smackx.jingleold.packet.JingleTransport;
@@ -94,6 +95,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
     *
     * @param session            The Jingle session
     * @param transResolver The JingleTransportManager to use
+    * @param parentNegotiator the parent ngeotiator.
     */
     public TransportNegotiator(JingleSession session, TransportResolver transResolver, ContentNegotiator parentNegotiator) {
         super(session);
@@ -108,6 +110,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
      * Get a new instance of the right TransportNegotiator class with this
      * candidate.
      *
+     * @param cand the transport candidate.
      * @return A TransportNegotiator instance
      */
     public abstract JingleTransport getJingleTransport(TransportCandidate cand);
@@ -116,6 +119,8 @@ public abstract class TransportNegotiator extends JingleNegotiator {
      * Return true if the transport candidate is acceptable for the current
      * negotiator.
      *
+     * @param tc the transport candidate.
+     * @param localCandidates a list of local transport candidates.
      * @return true if the transport candidate is acceptable
      */
     public abstract boolean acceptableTransportCandidate(TransportCandidate tc, List<TransportCandidate> localCandidates);
@@ -184,6 +189,8 @@ public abstract class TransportNegotiator extends JingleNegotiator {
 
     /**
      *  Return a JingleTransport that best reflects this transport negotiator.
+     *
+     *  @return the jingle transport.
      */
     public JingleTransport getJingleTransport() {
         return getJingleTransport(getBestRemoteCandidate());
@@ -281,7 +288,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
      * @return true if the transport is fully established.
      */
     public final boolean isFullyEstablished() {
-        return (isEstablished() && ((getNegotiatorState() == JingleNegotiatorState.SUCCEEDED) || (getNegotiatorState() == JingleNegotiatorState.FAILED)));
+        return isEstablished() && ((getNegotiatorState() == JingleNegotiatorState.SUCCEEDED) || (getNegotiatorState() == JingleNegotiatorState.FAILED));
     }
 
     /**
@@ -303,7 +310,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
 
                     // Sleep for some time, waiting for the candidates checks
 
-                    int totalTime = (CANDIDATES_ACCEPT_PERIOD + TransportResolver.CHECK_TIMEOUT);
+                    int totalTime = CANDIDATES_ACCEPT_PERIOD + TransportResolver.CHECK_TIMEOUT;
                     int tries = (int) Math.ceil(totalTime / 1000);
 
                     for (int i = 0; i < tries - 1; i++) {
@@ -341,7 +348,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
                                 try {
                                     triggerTransportEstablished(getAcceptedLocalCandidate(), bestRemote);
                                 }
-                                catch (InterruptedException | NotConnectedException e) {
+                                catch (InterruptedException | NotConnectedException | NoResponseException | XMPPErrorException e) {
                                     throw new IllegalStateException(e);
                                 }
                                 break;
@@ -358,7 +365,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
                         for (TransportCandidate candidate : remoteCandidates) {
                             if (candidate instanceof ICECandidate) {
                                 ICECandidate iceCandidate = (ICECandidate) candidate;
-                                if (iceCandidate.getType().equals(Type.relay)) {
+                                if (iceCandidate.getType().equals(ICECandidate.Type.relay)) {
                                     // TODO Check if the relay is reachable.
                                     addValidRemoteCandidate(iceCandidate);
                                     foundRemoteRelay = true;
@@ -373,7 +380,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
                             for (TransportCandidate candidate : offeredCandidates) {
                                 if (candidate instanceof ICECandidate) {
                                     ICECandidate iceCandidate = (ICECandidate) candidate;
-                                    if (iceCandidate.getType().equals(Type.relay)) {
+                                    if (iceCandidate.getType().equals(ICECandidate.Type.relay)) {
                                         foundLocalRelay = true;
                                     }
                                 }
@@ -506,7 +513,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
     /**
      * Parse the list of transport candidates from a Jingle packet.
      *
-     * @param jin The input jingle packet
+     * @param jingle The input jingle packet
      */
     private List<TransportCandidate> obtainCandidatesList(Jingle jingle) {
         List<TransportCandidate> result = new ArrayList<>();
@@ -531,9 +538,9 @@ public abstract class TransportNegotiator extends JingleNegotiator {
     /**
      * Send an offer for a transport candidate
      *
-     * @param cand
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @param cand TODO javadoc me please
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     private synchronized void sendTransportCandidateOffer(TransportCandidate cand) throws NotConnectedException, InterruptedException {
         if (!cand.isNull()) {
@@ -554,9 +561,9 @@ public abstract class TransportNegotiator extends JingleNegotiator {
     /**
      * Create a Jingle stanza where we announce our transport candidates.
      *
-     * @throws XMPPException
-     * @throws SmackException
-     * @throws InterruptedException
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     private void sendTransportCandidatesOffer() throws XMPPException, SmackException, InterruptedException {
         List<TransportCandidate> notOffered = resolver.getCandidatesList();
@@ -603,9 +610,9 @@ public abstract class TransportNegotiator extends JingleNegotiator {
      *
      * @param iq the stanza received
      * @return the new Jingle stanza to send.
-     * @throws XMPPException
-     * @throws SmackException
-     * @throws InterruptedException
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     @Override
     public final List<IQ> dispatchIncomingPacket(IQ iq, String id) throws XMPPException, SmackException, InterruptedException {
@@ -675,9 +682,9 @@ public abstract class TransportNegotiator extends JingleNegotiator {
      * offering a list of candidates.
      *
      * @return an IQ packet
-     * @throws XMPPException
-     * @throws SmackException
-     * @throws InterruptedException
+     * @throws XMPPException if an XMPP protocol error was received.
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     private Jingle receiveResult(IQ iq) throws XMPPException, SmackException, InterruptedException {
         Jingle response = null;
@@ -689,10 +696,10 @@ public abstract class TransportNegotiator extends JingleNegotiator {
     }
 
     /**
-     *  @param jingle
+     *  @param jingle TODO javadoc me please
      *  @return the iq
-     * @throws SmackException
-     * @throws InterruptedException
+     * @throws SmackException if Smack detected an exceptional situation.
+     * @throws InterruptedException if the calling thread was interrupted.
      */
     private IQ receiveSessionInitiateAction(Jingle jingle) throws XMPPException, SmackException, InterruptedException {
         IQ response = null;
@@ -714,7 +721,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
     }
 
     /**
-     *  @param jingle
+     *  @param jingle TODO javadoc me please
      *  @return the iq
      */
     private IQ receiveTransportInfoAction(Jingle jingle) {
@@ -775,7 +782,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
     }
 
     /**
-     *  @param jingle
+     *  @param jingle TODO javadoc me please
      *  @return the iq
      */
     private static IQ receiveSessionAcceptAction(Jingle jingle) {
@@ -794,10 +801,12 @@ public abstract class TransportNegotiator extends JingleNegotiator {
      *
      * @param local  TransportCandidate that has been agreed.
      * @param remote TransportCandidate that has been agreed.
-     * @throws NotConnectedException
-     * @throws InterruptedException
+     * @throws NotConnectedException if the XMPP connection is not connected.
+     * @throws InterruptedException if the calling thread was interrupted.
+     * @throws XMPPErrorException if there was an XMPP error returned.
+     * @throws NoResponseException if there was no response from the remote entity.
      */
-    private void triggerTransportEstablished(TransportCandidate local, TransportCandidate remote) throws NotConnectedException, InterruptedException {
+    private void triggerTransportEstablished(TransportCandidate local, TransportCandidate remote) throws NotConnectedException, InterruptedException, NoResponseException, XMPPErrorException {
         List<JingleListener> listeners = getListenersList();
         for (JingleListener li : listeners) {
             if (li instanceof JingleTransportListener) {
@@ -838,6 +847,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
          *
          * @param js  The Jingle session this negotiation belongs to.
          * @param res The transport resolver to use.
+         * @param parentNegotiator the parent content negotiator.
          */
         public RawUdp(JingleSession js, final TransportResolver res, ContentNegotiator parentNegotiator) {
             super(js, res, parentNegotiator);
@@ -893,6 +903,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
          *
          * @param js  The Jingle session this negotiation belongs to.
          * @param res The transport manager to use.
+         * @param parentNegotiator the parent content negotiator.
          */
         public Ice(JingleSession js, final TransportResolver res, ContentNegotiator parentNegotiator) {
             super(js, res, parentNegotiator);
@@ -901,7 +912,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
         /**
          * Get a TransportNegotiator instance.
          *
-         * @param candidate
+         * @param candidate TODO javadoc me please
          */
         @Override
         public org.jivesoftware.smackx.jingleold.packet.JingleTransport getJingleTransport(TransportCandidate candidate) {
@@ -935,7 +946,7 @@ public abstract class TransportNegotiator extends JingleNegotiator {
                 result = chose;
             }
 
-            if (result != null && result.getType().equals(Type.relay))
+            if (result != null && result.getType().equals(ICECandidate.Type.relay))
                 LOGGER.fine("Relay Type");
 
             return result;

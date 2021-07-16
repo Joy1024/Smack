@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2015-2019 Florian Schmaus
+ * Copyright 2015-2021 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import static org.reflections.ReflectionUtils.withParametersCount;
 import static org.reflections.ReflectionUtils.withReturnType;
 
 import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -32,6 +33,7 @@ import java.lang.reflect.Type;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,48 +43,54 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.jivesoftware.smack.AbstractXMPPConnection;
+import org.jivesoftware.smack.ConnectionConfiguration;
 import org.jivesoftware.smack.ConnectionConfiguration.SecurityMode;
+import org.jivesoftware.smack.Smack;
 import org.jivesoftware.smack.SmackConfiguration;
 import org.jivesoftware.smack.SmackException;
 import org.jivesoftware.smack.SmackException.NoResponseException;
 import org.jivesoftware.smack.XMPPException;
-import org.jivesoftware.smack.tcp.XMPPTCPConnection;
 import org.jivesoftware.smack.tcp.XMPPTCPConnectionConfiguration;
 import org.jivesoftware.smack.util.StringUtils;
+import org.jivesoftware.smack.util.TLSUtils;
+import org.jivesoftware.smack.util.dns.dnsjava.DNSJavaResolver;
+import org.jivesoftware.smack.util.dns.javax.JavaxResolver;
+import org.jivesoftware.smack.util.dns.minidns.MiniDnsResolver;
 
 import org.jivesoftware.smackx.debugger.EnhancedDebuggerWindow;
 import org.jivesoftware.smackx.iqregister.AccountManager;
 
 import org.igniterealtime.smack.inttest.Configuration.AccountRegistration;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.igniterealtime.smack.inttest.annotations.AfterClass;
+import org.igniterealtime.smack.inttest.annotations.BeforeClass;
+import org.igniterealtime.smack.inttest.annotations.SmackIntegrationTest;
 import org.reflections.Reflections;
 import org.reflections.scanners.MethodAnnotationsScanner;
 import org.reflections.scanners.MethodParameterScanner;
 import org.reflections.scanners.SubTypesScanner;
 import org.reflections.scanners.TypeAnnotationsScanner;
 
-public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
+public class SmackIntegrationTestFramework {
+
+    static {
+        TLSUtils.setDefaultTrustStoreTypeToJksIfRequired();
+    }
 
     private static final Logger LOGGER = Logger.getLogger(SmackIntegrationTestFramework.class.getName());
 
     public static boolean SINTTEST_UNIT_TEST = false;
 
-    private final Class<DC> defaultConnectionClass;
-
     protected final Configuration config;
 
     protected TestRunResult testRunResult;
 
-    private SmackIntegrationTestEnvironment<DC> environment;
-    protected XmppConnectionManager<DC> connectionManager;
+    private SmackIntegrationTestEnvironment environment;
+    protected XmppConnectionManager connectionManager;
 
     public enum TestType {
         Normal,
@@ -95,10 +103,10 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
             IllegalAccessException, IllegalArgumentException, InvocationTargetException {
         Configuration config = Configuration.newConfiguration(args);
 
-        SmackIntegrationTestFramework<XMPPTCPConnection> sinttest = new SmackIntegrationTestFramework<>(config, XMPPTCPConnection.class);
+        SmackIntegrationTestFramework sinttest = new SmackIntegrationTestFramework(config);
         TestRunResult testRunResult = sinttest.run();
 
-        for (Entry<Class<? extends AbstractSmackIntTest>, Throwable> entry : testRunResult.impossibleTestClasses.entrySet()) {
+        for (Map.Entry<Class<? extends AbstractSmackIntTest>, Throwable> entry : testRunResult.impossibleTestClasses.entrySet()) {
             LOGGER.info("Could not run " + entry.getKey().getName() + " because: "
                             + entry.getValue().getLocalizedMessage());
         }
@@ -111,11 +119,9 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         }
         final int successfulTests = testRunResult.successfulIntegrationTests.size();
         final int failedTests = testRunResult.failedIntegrationTests.size();
-        final int totalIntegrationTests = successfulTests + failedTests;
         final int availableTests = testRunResult.getNumberOfAvailableTests();
-        final int possibleTests = testRunResult.getNumberOfPossibleTests();
-        LOGGER.info("SmackIntegrationTestFramework[" + testRunResult.testRunId + ']' + ": Finished ["
-                        + successfulTests + '/' + totalIntegrationTests + "] (" + possibleTests + " test methods of " + availableTests + " where possible)");
+        LOGGER.info("SmackIntegrationTestFramework[" + testRunResult.testRunId + ']' + " finished: "
+                        + successfulTests + '/' + availableTests + " [" + failedTests + " failed]");
 
         final int exitStatus;
         if (failedTests > 0) {
@@ -141,23 +147,32 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         System.exit(exitStatus);
     }
 
-    public SmackIntegrationTestFramework(Configuration configuration, Class<DC> defaultConnectionClass)
-            throws KeyManagementException, InstantiationException, IllegalAccessException, IllegalArgumentException,
-            InvocationTargetException, NoSuchAlgorithmException, SmackException, IOException, XMPPException,
-            InterruptedException {
+    public SmackIntegrationTestFramework(Configuration configuration) {
         this.config = configuration;
-        this.defaultConnectionClass = defaultConnectionClass;
     }
 
     public synchronized TestRunResult run()
             throws KeyManagementException, NoSuchAlgorithmException, SmackException, IOException, XMPPException,
             InterruptedException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
+        // The DNS resolver is not really a per sinttest run setting. It is not even a per connection setting. Instead
+        // it is a global setting, but we treat it like a per sinttest run setting.
+        switch (config.dnsResolver) {
+        case minidns:
+            MiniDnsResolver.setup();
+            break;
+        case javax:
+            JavaxResolver.setup();
+            break;
+        case dnsjava:
+            DNSJavaResolver.setup();
+            break;
+        }
         testRunResult = new TestRunResult();
 
         // Create a connection manager *after* we created the testRunId (in testRunResult).
-        this.connectionManager = new XmppConnectionManager<>(this, defaultConnectionClass);
+        this.connectionManager = new XmppConnectionManager(this);
 
-        LOGGER.info("SmackIntegrationTestFramework [" + testRunResult.testRunId + ']' + ": Starting");
+        LOGGER.info("SmackIntegrationTestFramework [" + testRunResult.testRunId + ']' + ": Starting\nSmack version: " + Smack.getVersion());
         if (config.debugger != Configuration.Debugger.none) {
             // JUL Debugger will not print any information until configured to print log messages of
             // level FINE
@@ -185,8 +200,8 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         Set<Class<? extends AbstractSmackIntegrationTest>> inttestClasses = reflections.getSubTypesOf(AbstractSmackIntegrationTest.class);
         Set<Class<? extends AbstractSmackLowLevelIntegrationTest>> lowLevelInttestClasses = reflections.getSubTypesOf(AbstractSmackLowLevelIntegrationTest.class);
 
-        Set<Class<? extends AbstractSmackIntTest>> classes = new HashSet<>(inttestClasses.size()
-                        + lowLevelInttestClasses.size());
+        final int builtInTestCount = inttestClasses.size() + lowLevelInttestClasses.size();
+        Set<Class<? extends AbstractSmackIntTest>> classes = new HashSet<>(builtInTestCount);
         classes.addAll(inttestClasses);
         classes.addAll(lowLevelInttestClasses);
 
@@ -203,7 +218,7 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         }
 
         if (classes.isEmpty()) {
-            throw new IllegalStateException("No test classes found");
+            throw new IllegalStateException("No test classes in " + Arrays.toString(testPackages) + " found");
         }
 
         LOGGER.info("SmackIntegrationTestFramework [" + testRunResult.testRunId
@@ -213,6 +228,11 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         try {
             runTests(classes);
         }
+        catch (Throwable t) {
+            // Log the thrown Throwable to prevent it being shadowed in case the finally block below also throws.
+            LOGGER.log(Level.SEVERE, "Unexpected abort because runTests() threw throwable", t);
+            throw t;
+        }
         finally {
             // Ensure that the accounts are deleted and disconnected before we continue
             connectionManager.disconnectAndCleanup();
@@ -221,10 +241,13 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         return testRunResult;
     }
 
-    @SuppressWarnings({"unchecked", "Finally"})
+    @SuppressWarnings({"Finally"})
     private void runTests(Set<Class<? extends AbstractSmackIntTest>> classes)
             throws InterruptedException, InstantiationException, IllegalAccessException,
             IllegalArgumentException, SmackException, IOException, XMPPException {
+        List<PreparedTest> tests = new ArrayList<>(classes.size());
+        int numberOfAvailableTests = 0;
+
         for (Class<? extends AbstractSmackIntTest> testClass : classes) {
             final String testClassName = testClass.getName();
 
@@ -255,17 +278,19 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
             // - https://discuss.gradle.org/t/main-vs-test-compile-vs-runtime-classpaths-in-eclipse-once-and-for-all-how/17403
             // - https://bugs.eclipse.org/bugs/show_bug.cgi?id=376616 (Scope of dependencies has no effect on Eclipse compilation)
             if (!SINTTEST_UNIT_TEST && testClassName.startsWith("org.igniterealtime.smack.inttest.unittest")) {
-                LOGGER.finer("Skipping integration test '" + testClassName + "' from src/test classpath");
+                LOGGER.warning("Skipping integration test '" + testClassName + "' from src/test classpath (should not be in classpath)");
                 continue;
             }
 
             if (config.enabledTests != null && !isInSet(testClass, config.enabledTests)) {
-                LOGGER.info("Skipping test class " + testClassName + " because it is not enabled");
+                DisabledTestClass disabledTestClass = new DisabledTestClass(testClass, "Skipping test class " + testClassName + " because it is not enabled");
+                testRunResult.disabledTestClasses.add(disabledTestClass);
                 continue;
             }
 
             if (isInSet(testClass, config.disabledTests)) {
-                LOGGER.info("Skipping test class " + testClassName + " because it is disalbed");
+                DisabledTestClass disabledTestClass = new DisabledTestClass(testClass, "Skipping test class " + testClassName + " because it is disalbed");
+                testRunResult.disabledTestClasses.add(disabledTestClass);
                 continue;
             }
 
@@ -296,8 +321,6 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
                 continue;
             }
 
-            testRunResult.numberOfAvailableTestMethods.addAndGet(smackIntegrationTestMethods.size());
-
             final AbstractSmackIntTest test;
             try {
                 test = cons.newInstance(environment);
@@ -311,11 +334,11 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
                 continue;
             }
 
-            Class<? extends AbstractXMPPConnection> specificLowLevelConnectionClass = null;
+            XmppConnectionDescriptor<?, ?, ?> specificLowLevelConnectionDescriptor = null;
             final TestType testType;
             if (test instanceof AbstractSmackSpecificLowLevelIntegrationTest) {
                 AbstractSmackSpecificLowLevelIntegrationTest<?> specificLowLevelTest = (AbstractSmackSpecificLowLevelIntegrationTest<?>) test;
-                specificLowLevelConnectionClass = specificLowLevelTest.getConnectionClass();
+                specificLowLevelConnectionDescriptor = specificLowLevelTest.getConnectionDescriptor();
                 testType = TestType.SpecificLowLevel;
             } else if (test instanceof AbstractSmackLowLevelIntegrationTest) {
                 testType = TestType.LowLevel;
@@ -344,6 +367,7 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
                     verifyLowLevelTestMethod(method, AbstractXMPPConnection.class);
                     break;
                 case SpecificLowLevel:
+                    Class<? extends AbstractXMPPConnection> specificLowLevelConnectionClass = specificLowLevelConnectionDescriptor.getConnectionClass();
                     verifyLowLevelTestMethod(method, specificLowLevelConnectionClass);
                     break;
                 }
@@ -355,12 +379,14 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
                 final String methodName = method.getName();
                 if (config.enabledTests != null && !(config.enabledTests.contains(methodName)
                                 || isInSet(testClass, config.enabledTests))) {
-                    LOGGER.fine("Skipping test method " + methodName + " because it is not enabled");
+                    DisabledTest disabledTest = new DisabledTest(method, "Skipping test method " + methodName + " because it is not enabled");
+                    testRunResult.disabledTests.add(disabledTest);
                     it.remove();
                     continue;
                 }
                 if (config.disabledTests != null && config.disabledTests.contains(methodName)) {
-                    LOGGER.info("Skipping test method " + methodName + " because it is disabled");
+                    DisabledTest disabledTest = new DisabledTest(method, "Skipping test method " + methodName + " because it is disabled");
+                    testRunResult.disabledTests.add(disabledTest);
                     it.remove();
                     continue;
                 }
@@ -371,106 +397,79 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
                 continue;
             }
 
-            final int detectedTestMethodsCount = smackIntegrationTestMethods.size();
-            testRunResult.numberOfPossibleTestMethods.addAndGet(detectedTestMethodsCount);
+            List<ConcreteTest> concreteTests = new ArrayList<>(smackIntegrationTestMethods.size());
 
-            try {
-                // Run the @BeforeClass methods (if any)
-                Set<Method> beforeClassMethods = getAllMethods(testClass,
-                                withAnnotation(BeforeClass.class), withReturnType(Void.TYPE),
-                                withParametersCount(0), withModifier(Modifier.PUBLIC
-                                                ));
-
-                // See if there are any methods that have the @BeforeClassAnnotation but a wrong signature
-                Set<Method> allBeforeClassMethods =  getAllMethods(testClass, withAnnotation(BeforeClass.class));
-                allBeforeClassMethods.removeAll(beforeClassMethods);
-                if (!allBeforeClassMethods.isEmpty()) {
-                    throw new IllegalArgumentException("@BeforeClass methods with wrong signature found");
+            for (Method testMethod : smackIntegrationTestMethods) {
+                switch (testType) {
+                case Normal: {
+                    ConcreteTest.Executor concreteTestExecutor = () -> testMethod.invoke(test);
+                    ConcreteTest concreteTest = new ConcreteTest(testType, testMethod, concreteTestExecutor);
+                    concreteTests.add(concreteTest);
                 }
-
-                if (beforeClassMethods.size() == 1) {
-                    Method beforeClassMethod = beforeClassMethods.iterator().next();
-                    LOGGER.info("Executing @BeforeClass method of " + testClass);
-                    try {
-                        beforeClassMethod.invoke(test);
-                    }
-                    catch (InvocationTargetException | IllegalAccessException e) {
-                        LOGGER.log(Level.SEVERE, "Exception executing @BeforeClass method", e);
-                    }
-                    catch (IllegalArgumentException e) {
-                        throw new AssertionError(e);
-                    }
-                }
-                else if (beforeClassMethods.size() > 1) {
-                    throw new IllegalArgumentException("Only one @BeforeClass method allowed");
-                }
-
-                for (Method testMethod : smackIntegrationTestMethods) {
-                    List<ConcreteTest> concreteTests = null;
+                    break;
+                case LowLevel:
+                case SpecificLowLevel:
+                    LowLevelTestMethod lowLevelTestMethod = new LowLevelTestMethod(testMethod);
                     switch (testType) {
-                    case Normal: {
-                        ConcreteTest.Executor concreteTestExecutor = () -> testMethod.invoke(test);
-                        ConcreteTest concreteTest = new ConcreteTest(testType, testMethod, concreteTestExecutor);
-                        concreteTests = Collections.singletonList(concreteTest);
-                    }
-                        break;
                     case LowLevel:
-                    case SpecificLowLevel:
-                        LowLevelTestMethod lowLevelTestMethod = new LowLevelTestMethod(testMethod);
-                        switch (testType) {
-                        case LowLevel:
-                            concreteTests = invokeLowLevel(lowLevelTestMethod, (AbstractSmackLowLevelIntegrationTest) test);
-                            break;
-                        case SpecificLowLevel: {
-                            ConcreteTest.Executor concreteTestExecutor = () -> invokeSpecificLowLevel(
-                                    lowLevelTestMethod, (AbstractSmackSpecificLowLevelIntegrationTest<?>) test);
-                            ConcreteTest concreteTest = new ConcreteTest(testType, testMethod, concreteTestExecutor);
-                            concreteTests = Collections.singletonList(concreteTest);
-                            break;
-                        }
-                        default:
-                            throw new AssertionError();
-                        }
+                        List<ConcreteTest> concreteLowLevelTests = invokeLowLevel(lowLevelTestMethod, (AbstractSmackLowLevelIntegrationTest) test);
+                        concreteTests.addAll(concreteLowLevelTests);
+                        break;
+                    case SpecificLowLevel: {
+                        ConcreteTest.Executor concreteTestExecutor = () -> invokeSpecificLowLevel(
+                                lowLevelTestMethod, (AbstractSmackSpecificLowLevelIntegrationTest<?>) test);
+                        ConcreteTest concreteTest = new ConcreteTest(testType, testMethod, concreteTestExecutor);
+                        concreteTests.add(concreteTest);
                         break;
                     }
-
-                    for (ConcreteTest concreteTest : concreteTests) {
-                        runConcreteTest(concreteTest);
+                    default:
+                        throw new AssertionError();
                     }
+                    break;
                 }
             }
-            finally {
-                // Run the @AfterClass method (if any)
-                Set<Method> afterClassMethods = getAllMethods(testClass,
-                                withAnnotation(AfterClass.class), withReturnType(Void.TYPE),
-                                withParametersCount(0), withModifier(Modifier.PUBLIC
-                                                ));
 
-                // See if there are any methods that have the @AfterClassAnnotation but a wrong signature
-                Set<Method> allAfterClassMethods =  getAllMethods(testClass, withAnnotation(AfterClass.class));
-                allAfterClassMethods.removeAll(afterClassMethods);
-                if (!allAfterClassMethods.isEmpty()) {
-                    throw new IllegalArgumentException("@AfterClass methods with wrong signature found");
-                }
+            // Instantiate the prepared test early as this will check the before and after class annotations.
+            PreparedTest preparedTest = new PreparedTest(test, concreteTests);
+            tests.add(preparedTest);
 
-                if (afterClassMethods.size() == 1) {
-                    Method afterClassMethod = afterClassMethods.iterator().next();
-                    LOGGER.info("Executing @AfterClass method of " + testClass);
-                    try {
-                        afterClassMethod.invoke(test);
-                    }
-                    catch (InvocationTargetException | IllegalAccessException e) {
-                        LOGGER.log(Level.SEVERE, "Exception executing @AfterClass method", e);
-                    }
-                    catch (IllegalArgumentException e) {
-                        throw new AssertionError(e);
-                    }
-                }
-                else if (afterClassMethods.size() > 1) {
-                    throw new IllegalArgumentException("Only one @AfterClass method allowed");
-                }
-            }
+            numberOfAvailableTests += concreteTests.size();
         }
+
+        // Print status information.
+        StringBuilder sb = new StringBuilder(1024);
+        sb.append("Smack Integration Test Framework\n");
+        sb.append("################################\n");
+        if (config.verbose) {
+            sb.append('\n');
+            if (!testRunResult.disabledTestClasses.isEmpty()) {
+                sb.append("The following test classes are disabled:\n");
+                for (DisabledTestClass disabledTestClass : testRunResult.disabledTestClasses) {
+                    disabledTestClass.appendTo(sb).append('\n');
+                }
+            }
+            if (!testRunResult.disabledTests.isEmpty()) {
+                sb.append("The following tests are disabled:\n");
+                for (DisabledTest disabledTest : testRunResult.disabledTests) {
+                    disabledTest.appendTo(sb).append('\n');
+                }
+            }
+            sb.append('\n');
+        }
+        sb.append("Available tests: ").append(numberOfAvailableTests);
+        if (!testRunResult.disabledTestClasses.isEmpty() || !testRunResult.disabledTests.isEmpty()) {
+            sb.append(" (Disabled ").append(testRunResult.disabledTestClasses.size()).append(" classes")
+              .append(" and ").append(testRunResult.disabledTests.size()).append(" tests)");
+        }
+        sb.append('\n');
+        LOGGER.info(sb.toString());
+
+        for (PreparedTest test : tests) {
+            test.run();
+        }
+
+        // Assert that all tests in the 'tests' list produced a result.
+        assert numberOfAvailableTests == testRunResult.getNumberOfAvailableTests();
     }
 
     private void runConcreteTest(ConcreteTest concreteTest)
@@ -519,37 +518,54 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
     }
 
     private List<ConcreteTest> invokeLowLevel(LowLevelTestMethod lowLevelTestMethod, AbstractSmackLowLevelIntegrationTest test) {
-        Set<Class<? extends AbstractXMPPConnection>> connectionClasses;
+        Collection<? extends XmppConnectionDescriptor<?, ?, ?>> connectionDescriptors;
         if (lowLevelTestMethod.smackIntegrationTestAnnotation.onlyDefaultConnectionType()) {
-            Class<? extends AbstractXMPPConnection> defaultConnectionClass = connectionManager.getDefaultConnectionClass();
-            connectionClasses = Collections.singleton(defaultConnectionClass);
+            XmppConnectionDescriptor<?, ?, ?> defaultConnectionDescriptor = connectionManager.getDefaultConnectionDescriptor();
+            connectionDescriptors = Collections.singleton(defaultConnectionDescriptor);
         } else {
-            connectionClasses = connectionManager.getConnectionClasses();
+            connectionDescriptors = connectionManager.getConnectionDescriptors();
         }
 
-        List<ConcreteTest> resultingConcreteTests = new ArrayList<>(connectionClasses.size());
+        List<ConcreteTest> resultingConcreteTests = new ArrayList<>(connectionDescriptors.size());
 
-        for (Class<? extends AbstractXMPPConnection> connectionClass : connectionClasses) {
-            ConcreteTest.Executor executor = () -> lowLevelTestMethod.invoke(test, connectionClass);
-            ConcreteTest concreteTest = new ConcreteTest(TestType.LowLevel, lowLevelTestMethod.testMethod, executor, connectionClass.getSimpleName());
+        for (XmppConnectionDescriptor<?, ?, ?> connectionDescriptor : connectionDescriptors) {
+            String connectionNick = connectionDescriptor.getNickname();
+
+            if (config.enabledConnections != null && !config.enabledConnections.contains(connectionNick)) {
+                DisabledTest disabledTest = new DisabledTest(lowLevelTestMethod.testMethod, "Not creating test for " + lowLevelTestMethod + " with connection '" + connectionNick
+                                + "', as this connection type is not enabled");
+                testRunResult.disabledTests.add(disabledTest);
+                continue;
+            }
+
+            if (config.disabledConnections != null && config.disabledConnections.contains(connectionNick)) {
+                DisabledTest disabledTest = new DisabledTest(lowLevelTestMethod.testMethod, "Not creating test for " + lowLevelTestMethod + " with connection '" + connectionNick
+                                + ", as this connection type is disabled");
+                testRunResult.disabledTests.add(disabledTest);
+                continue;
+            }
+
+            ConcreteTest.Executor executor = () -> lowLevelTestMethod.invoke(test, connectionDescriptor);
+            ConcreteTest concreteTest = new ConcreteTest(TestType.LowLevel, lowLevelTestMethod.testMethod, executor, connectionDescriptor.getNickname());
             resultingConcreteTests.add(concreteTest);
         }
 
         return resultingConcreteTests;
     }
 
-    private <C extends AbstractXMPPConnection> void invokeSpecificLowLevel(LowLevelTestMethod testMethod,
+    private static <C extends AbstractXMPPConnection> void invokeSpecificLowLevel(LowLevelTestMethod testMethod,
             AbstractSmackSpecificLowLevelIntegrationTest<C> test)
             throws IllegalAccessException, IllegalArgumentException, InvocationTargetException, InterruptedException,
             SmackException, IOException, XMPPException {
         if (testMethod.smackIntegrationTestAnnotation.onlyDefaultConnectionType()) {
             throw new IllegalArgumentException("SpecificLowLevelTests must not have set onlyDefaultConnectionType");
         }
-        Class<C> connectionClass = test.getConnectionClass();
-        testMethod.invoke(test, connectionClass);
+
+        XmppConnectionDescriptor<C, ? extends ConnectionConfiguration, ? extends ConnectionConfiguration.Builder<?, ?>> connectionDescriptor = test.getConnectionDescriptor();
+        testMethod.invoke(test, connectionDescriptor);
     }
 
-    protected SmackIntegrationTestEnvironment<DC> prepareEnvironment() throws SmackException,
+    protected SmackIntegrationTestEnvironment prepareEnvironment() throws SmackException,
                     IOException, XMPPException, InterruptedException, KeyManagementException,
                     NoSuchAlgorithmException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
         return connectionManager.prepareEnvironment();
@@ -571,11 +587,16 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
 
     private static Exception throwFatalException(Throwable e) throws Error, NoResponseException,
                     InterruptedException {
-        if (e instanceof NoResponseException) {
-            throw (NoResponseException) e;
-        }
         if (e instanceof InterruptedException) {
             throw (InterruptedException) e;
+        }
+
+        // We handle NullPointerException as a non fatal exception, as they are mostly caused by an invalid reply where
+        // a extension element is missing. Consider for example
+        // assertEquals(StanzaError.Condition.foo, response.getError().getCondition())
+        // Otherwise NPEs could be caused by an internal bug in Smack, e.g. missing null handling.
+        if (e instanceof NullPointerException) {
+            return (NullPointerException) e;
         }
         if (e instanceof RuntimeException) {
             throw (RuntimeException) e;
@@ -592,7 +613,7 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         }
         final String className = clz.getName();
         final String unqualifiedClassName = clz.getSimpleName();
-        return (classes.contains(className) || classes.contains(unqualifiedClassName));
+        return classes.contains(className) || classes.contains(unqualifiedClassName);
     }
 
     public static final class TestRunResult {
@@ -607,9 +628,13 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         private final List<SuccessfulTest> successfulIntegrationTests = Collections.synchronizedList(new LinkedList<SuccessfulTest>());
         private final List<FailedTest> failedIntegrationTests = Collections.synchronizedList(new LinkedList<FailedTest>());
         private final List<TestNotPossible> impossibleIntegrationTests = Collections.synchronizedList(new LinkedList<TestNotPossible>());
+
+        // TODO: Ideally three would only be a list of disabledTests, but since we do not process a disabled test class
+        // any further, we can not determine the concrete disabled tests.
+        private final List<DisabledTestClass> disabledTestClasses = Collections.synchronizedList(new ArrayList<>());
+        private final List<DisabledTest> disabledTests = Collections.synchronizedList(new ArrayList<>());
+
         private final Map<Class<? extends AbstractSmackIntTest>, Throwable> impossibleTestClasses = new HashMap<>();
-        private final AtomicInteger numberOfAvailableTestMethods = new AtomicInteger();
-        private final AtomicInteger numberOfPossibleTestMethods = new AtomicInteger();
 
         TestRunResult() {
         }
@@ -619,11 +644,7 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         }
 
         public int getNumberOfAvailableTests() {
-            return numberOfAvailableTestMethods.get();
-        }
-
-        public int getNumberOfPossibleTests() {
-            return numberOfPossibleTestMethods.get();
+            return successfulIntegrationTests.size() + failedIntegrationTests.size() + impossibleIntegrationTests.size();
         }
 
         public List<SuccessfulTest> getSuccessfulTests() {
@@ -641,6 +662,77 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
         public Map<Class<? extends AbstractSmackIntTest>, Throwable> getImpossibleTestClasses() {
             return Collections.unmodifiableMap(impossibleTestClasses);
         }
+    }
+
+    final class PreparedTest {
+        private final AbstractSmackIntTest test;
+        private final List<ConcreteTest> concreteTests;
+
+        private final Method beforeClassMethod;
+        private final Method afterClassMethod;
+
+        private PreparedTest(AbstractSmackIntTest test, List<ConcreteTest> concreteTests) {
+            this.test = test;
+            this.concreteTests = concreteTests;
+            Class<? extends AbstractSmackIntTest> testClass = test.getClass();
+
+            beforeClassMethod = getSinttestSpecialMethod(testClass, BeforeClass.class);
+            afterClassMethod = getSinttestSpecialMethod(testClass, AfterClass.class);
+        }
+
+        public void run() throws InterruptedException, XMPPException, IOException, SmackException {
+            try {
+                // Run the @BeforeClass methods (if any)
+                executeSinttestSpecialMethod(beforeClassMethod);
+
+                for (ConcreteTest concreteTest : concreteTests) {
+                    runConcreteTest(concreteTest);
+                }
+            }
+            finally {
+                executeSinttestSpecialMethod(afterClassMethod);
+            }
+        }
+
+        private void executeSinttestSpecialMethod(Method method) {
+            if (method == null) {
+                return;
+            }
+
+            try {
+                method.invoke(test);
+            }
+            catch (InvocationTargetException | IllegalAccessException e) {
+                LOGGER.log(Level.SEVERE, "Exception executing " + method, e);
+            }
+            catch (IllegalArgumentException e) {
+                throw new AssertionError(e);
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Method getSinttestSpecialMethod(Class<? extends AbstractSmackIntTest> testClass, Class<? extends Annotation> annotation) {
+        Set<Method> specialClassMethods = getAllMethods(testClass,
+                        withAnnotation(annotation), withReturnType(Void.TYPE),
+                        withParametersCount(0), withModifier(Modifier.PUBLIC
+                                        ));
+
+        // See if there are any methods that have a special but a wrong signature
+        Set<Method> allSpecialClassMethods = getAllMethods(testClass, withAnnotation(annotation));
+        allSpecialClassMethods.removeAll(specialClassMethods);
+        if (!allSpecialClassMethods.isEmpty()) {
+            throw new IllegalArgumentException(annotation + " methods with wrong signature found");
+        }
+
+        if (specialClassMethods.size() == 1) {
+            return specialClassMethods.iterator().next();
+        }
+        else if (specialClassMethods.size() > 1) {
+            throw new IllegalArgumentException("Only one @BeforeClass method allowed");
+        }
+
+        return null;
     }
 
     static final class ConcreteTest {
@@ -670,13 +762,10 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
                 .append(method.getName())
                 .append(" (")
                 .append(testType.name());
-            final String SUBDESCRIPTION_DELIMITER = ", ";
-            sb.append(SUBDESCRIPTION_DELIMITER);
-
-            for (String subdescripton : subdescriptons) {
-                sb.append(subdescripton).append(SUBDESCRIPTION_DELIMITER);
+            if (subdescriptons != null && subdescriptons.length > 0) {
+                sb.append(", ");
+                StringUtils.appendTo(Arrays.asList(subdescriptons), sb);
             }
-            sb.setLength(sb.length() - SUBDESCRIPTION_DELIMITER.length());
             sb.append(')');
 
             stringCache = sb.toString();
@@ -688,8 +777,8 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
             /**
              * Execute the test.
              *
-             * @throws IllegalAccessException
-             * @throws InterruptedException
+             * @throws IllegalAccessException if there was an illegal access.
+             * @throws InterruptedException if the calling thread was interrupted.
              * @throws InvocationTargetException if the reflective invoked test throws an exception.
              * @throws XMPPException in case an XMPPException happens when <em>preparing</em> the test.
              * @throws IOException in case an IOException happens when <em>preparing</em> the test.
@@ -697,6 +786,50 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
              */
             void execute() throws IllegalAccessException, InterruptedException, InvocationTargetException,
                     XMPPException, IOException, SmackException;
+        }
+    }
+
+    public static final class DisabledTestClass {
+        private final Class<? extends AbstractSmackIntTest> testClass;
+        private final String reason;
+
+        private DisabledTestClass(Class<? extends AbstractSmackIntTest> testClass, String reason) {
+            this.testClass = testClass;
+            this.reason = reason;
+        }
+
+        public Class<? extends AbstractSmackIntTest> getTestClass() {
+            return testClass;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public StringBuilder appendTo(StringBuilder sb) {
+            return sb.append("Disabled ").append(testClass).append(" because ").append(reason);
+        }
+    }
+
+    public static final class DisabledTest {
+        private final Method method;
+        private final String reason;
+
+        private DisabledTest(Method method, String reason) {
+            this.method = method;
+            this.reason = reason;
+        }
+
+        public Method getMethod() {
+            return method;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public StringBuilder appendTo(StringBuilder sb) {
+            return sb.append("Disabled ").append(method).append(" because ").append(reason);
         }
     }
 
@@ -709,12 +842,12 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
             this.testMethod = testMethod;
 
             smackIntegrationTestAnnotation = testMethod.getAnnotation(SmackIntegrationTest.class);
-            assert (smackIntegrationTestAnnotation != null);
+            assert smackIntegrationTestAnnotation != null;
             parameterListOfConnections = testMethodParametersIsListOfConnections(testMethod);
         }
 
         private void invoke(AbstractSmackLowLevelIntegrationTest test,
-                        Class<? extends AbstractXMPPConnection> connectionClass)
+                        XmppConnectionDescriptor<?, ?, ?> connectionDescriptor)
                         throws IllegalAccessException, IllegalArgumentException, InvocationTargetException,
                         InterruptedException, SmackException, IOException, XMPPException {
             final int connectionCount;
@@ -729,7 +862,7 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
             }
 
             List<? extends AbstractXMPPConnection> connections = connectionManager.constructConnectedConnections(
-                            connectionClass, connectionCount);
+                            connectionDescriptor, connectionCount);
 
             if (parameterListOfConnections) {
                 testMethod.invoke(test, connections);
@@ -740,6 +873,13 @@ public class SmackIntegrationTestFramework<DC extends AbstractXMPPConnection> {
                 }
                 testMethod.invoke(test, connectionsArray);
             }
+
+            connectionManager.recycle(connections);
+        }
+
+        @Override
+        public String toString() {
+            return testMethod.toString();
         }
     }
 

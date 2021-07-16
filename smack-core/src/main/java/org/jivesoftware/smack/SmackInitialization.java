@@ -1,6 +1,6 @@
 /**
  *
- * Copyright 2003-2007 Jive Software, 2014-2016 Florian Schmaus
+ * Copyright 2003-2007 Jive Software, 2014-2020 Florian Schmaus
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,17 +26,25 @@ import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.jivesoftware.smack.bind2.Bind2ModuleDescriptor;
 import org.jivesoftware.smack.compress.provider.CompressedProvider;
 import org.jivesoftware.smack.compress.provider.FailureProvider;
+import org.jivesoftware.smack.compression.CompressionModuleDescriptor;
 import org.jivesoftware.smack.compression.Java7ZlibInputOutputStream;
 import org.jivesoftware.smack.compression.XmppCompressionManager;
 import org.jivesoftware.smack.compression.zlib.ZlibXmppCompressionFactory;
 import org.jivesoftware.smack.initializer.SmackInitializer;
+import org.jivesoftware.smack.isr.InstantStreamResumptionModuleDescriptor;
 import org.jivesoftware.smack.packet.Bind;
-import org.jivesoftware.smack.packet.Message.Body;
+import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.provider.BindIQProvider;
 import org.jivesoftware.smack.provider.BodyElementProvider;
+import org.jivesoftware.smack.provider.MessageSubjectElementProvider;
+import org.jivesoftware.smack.provider.MessageThreadElementProvider;
 import org.jivesoftware.smack.provider.ProviderManager;
+import org.jivesoftware.smack.provider.SaslChallengeProvider;
+import org.jivesoftware.smack.provider.SaslFailureProvider;
+import org.jivesoftware.smack.provider.SaslSuccessProvider;
 import org.jivesoftware.smack.provider.TlsFailureProvider;
 import org.jivesoftware.smack.provider.TlsProceedProvider;
 import org.jivesoftware.smack.sasl.core.SASLAnonymous;
@@ -46,9 +54,7 @@ import org.jivesoftware.smack.sasl.core.ScramSha1PlusMechanism;
 import org.jivesoftware.smack.util.CloseableUtil;
 import org.jivesoftware.smack.util.FileUtils;
 import org.jivesoftware.smack.util.PacketParserUtils;
-
 import org.jivesoftware.smack.xml.XmlPullParser;
-
 
 public final class SmackInitialization {
     static final String SMACK_VERSION;
@@ -101,7 +107,7 @@ public final class SmackInitialization {
         }
 
         // Add the Java7 compression handler first, since it's preferred
-        SmackConfiguration.compressionHandlers.add(new Java7ZlibInputOutputStream());
+        SmackConfiguration.addCompressionHandler(new Java7ZlibInputOutputStream());
 
         XmppCompressionManager.registerXmppCompressionFactory(ZlibXmppCompressionFactory.INSTANCE);
 
@@ -124,12 +130,21 @@ public final class SmackInitialization {
         SASLAuthentication.registerSASLMechanism(new SASLAnonymous());
 
         ProviderManager.addIQProvider(Bind.ELEMENT, Bind.NAMESPACE, new BindIQProvider());
-        ProviderManager.addExtensionProvider(Body.ELEMENT, Body.NAMESPACE, new BodyElementProvider());
+        ProviderManager.addExtensionProvider(Message.Body.ELEMENT, Message.Body.NAMESPACE, new BodyElementProvider());
+        ProviderManager.addExtensionProvider(Message.Thread.ELEMENT, Message.Thread.NAMESPACE, new MessageThreadElementProvider());
+        ProviderManager.addExtensionProvider(Message.Subject.ELEMENT, Message.Subject.NAMESPACE, new MessageSubjectElementProvider());
 
+        ProviderManager.addNonzaProvider(SaslChallengeProvider.INSTANCE);
+        ProviderManager.addNonzaProvider(SaslSuccessProvider.INSTANCE);
+        ProviderManager.addNonzaProvider(SaslFailureProvider.INSTANCE);
         ProviderManager.addNonzaProvider(TlsProceedProvider.INSTANCE);
         ProviderManager.addNonzaProvider(TlsFailureProvider.INSTANCE);
         ProviderManager.addNonzaProvider(CompressedProvider.INSTANCE);
         ProviderManager.addNonzaProvider(FailureProvider.INSTANCE);
+
+        SmackConfiguration.addModule(Bind2ModuleDescriptor.class);
+        SmackConfiguration.addModule(CompressionModuleDescriptor.class);
+        SmackConfiguration.addModule(InstantStreamResumptionModuleDescriptor.class);
 
         SmackConfiguration.smackInitialized = true;
     }

@@ -55,21 +55,22 @@ public class BytestreamsProvider extends IQProvider<Bytestream> {
         String elementName;
         while (!done) {
             eventType = parser.next();
-            elementName = parser.getName();
             if (eventType == XmlPullParser.Event.START_ELEMENT) {
-                if (elementName.equals(Bytestream.StreamHost.ELEMENTNAME)) {
+                elementName = parser.getName();
+                if (elementName.equals(Bytestream.StreamHost.ELEMENT)) {
                     JID = ParserUtils.getJidAttribute(parser);
                     host = parser.getAttributeValue("", "host");
                     port = parser.getAttributeValue("", "port");
                 }
-                else if (elementName.equals(Bytestream.StreamHostUsed.ELEMENTNAME)) {
+                else if (elementName.equals(Bytestream.StreamHostUsed.ELEMENT)) {
                     toReturn.setUsedHost(ParserUtils.getJidAttribute(parser));
                 }
-                else if (elementName.equals(Bytestream.Activate.ELEMENTNAME)) {
+                else if (elementName.equals(Bytestream.Activate.ELEMENT)) {
                     toReturn.setToActivate(ParserUtils.getJidAttribute(parser));
                 }
             }
             else if (eventType == XmlPullParser.Event.END_ELEMENT) {
+                elementName = parser.getName();
                 if (elementName.equals("streamhost")) {
                     if (port == null) {
                         toReturn.addStreamHost(JID, host);
